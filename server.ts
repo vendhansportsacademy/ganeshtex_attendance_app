@@ -11,55 +11,66 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- DATABASE CONNECTION LOGIC ---
-const MONGODB_URI = (process.env.MONGODB_URI || "").trim();
-
-// This variable stores the connection state so we don't reconnect every time
+// 1. Connection Cache Logic
 let isConnected = false;
 
 async function connectToDatabase() {
-  if (isConnected) return;
-
+  if (isConnected && mongoose.connection.readyState === 1) return;
+  const URI = (process.env.MONGODB_URI || "mongodb+srv://ganeshtex:ganeshtex123@cluster0.0a3heot.mongodb.net/?appName=Cluster0").trim();
+  
   try {
-    if (!MONGODB_URI) throw new Error("MONGODB_URI is missing in Environment Variables");
-    
-    // Connect and wait for it to finish
-    await mongoose.connect(MONGODB_URI, {
-        serverSelectionTimeoutMS: 5000,
-    });
-    
+    await mongoose.connect(URI, { serverSelectionTimeoutMS: 5000 });
     isConnected = true;
     console.log("✅ Database Connected");
   } catch (err: any) {
-    console.error("❌ Database Connection Failed:", err.message);
-    throw err; // This will trigger a 500 error instead of a crash
+    console.error("❌ DB Connection Error:", err.message);
   }
 }
 
-// Middleware: EVERY request will wait for the database connection first
+// Ensure DB is connected for every request
 app.use(async (req, res, next) => {
-  try {
-    await connectToDatabase();
-    next();
-  } catch (err: any) {
-    res.status(503).json({ error: "Database not ready", details: err.message });
-  }
+  await connectToDatabase();
+  next();
 });
 
-// --- API ROUTES ---
+// 2. Define ALL API Routes
 const api = express.Router();
 
-api.get("/status", (req, res) => {
-  res.json({ status: "online", db: isConnected ? "connected" : "connecting" });
-});
+// Health & Status (Fixes your /api/health 404)
+api.get("/health", (req, res) => res.json({ status: "ok" }));
+api.get("/status", (req, res) => res.json({ status: "online", db: isConnected }));
 
+// --- EMPLOYEES ---
 api.get("/employees", async (req, res) => {
   try {
     const employees = await User.find({ role: "employee" }).sort({ name: 1 });
     res.json(employees || []);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// THIS ROUTE WAS MISSING (Fixes the "Registering" 404)
+api.post("/employees", async (req, res) => {
+  try {
+    const employee = new User({ ...req.body, role: "employee" });
+    await employee.save();
+    res.json(employee);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+api.delete("/employees/:id", async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// --- ATTENDANCE ---
+api.get("/attendance/today", async (req, res) => {
+  const dateStr = format(new Date(), "yyyy-MM-dd");
+  try {
+    const records = await Attendance.find({ date: dateStr });
+    res.json(records);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 api.post("/attendance/toggle", async (req, res) => {
@@ -90,14 +101,7 @@ api.post("/attendance/toggle", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-api.get("/attendance/today", async (req, res) => {
-    try {
-      const dateStr = format(new Date(), "yyyy-MM-dd");
-      const records = await Attendance.find({ date: dateStr });
-      res.json(records);
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
-
+// --- ADMIN REPORTS ---
 api.get("/admin/attendance", async (req, res) => {
   try {
     const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
@@ -105,6 +109,18 @@ api.get("/admin/attendance", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+api.get("/admin/reports/monthly", async (req, res) => {
+  const { month } = req.query;
+  try {
+    const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
+    const records = await Attendance.find({
+      checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
+    }).sort({ checkIn: -1 });
+    res.json(records);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// 3. Routing: Handle both /api/path and /path
 app.use("/api", api);
 app.use("/", api);
 
