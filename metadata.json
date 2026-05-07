@@ -1,0 +1,6 @@
+{
+  "name": "Chronos Attendance",
+  "description": "Employee attendance management with real-time tracking, GPS verification, and automated reporting.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}
