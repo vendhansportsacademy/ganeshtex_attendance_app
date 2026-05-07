@@ -15,28 +15,32 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+  const HOST = process.env.HOST || "0.0.0.0";
 
   app.use(cors());
   app.use(express.json());
 
-  // MongoDB Connection - Using user-provided URI
-  const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://ganeshtex:ganeshtex123@cluster0.0a3heot.mongodb.net/?appName=Cluster0";
-  let isDemo = !MONGODB_URI || MONGODB_URI === "" || MONGODB_URI.includes("YOUR_MONGODB_URI");
+  // MongoDB Connection - Using user-provided URI or default fallback
+  const MONGODB_URI = process.env.MONGODB_URI?.trim() || "mongodb+srv://ganeshtex:ganeshtex123@cluster0.0a3heot.mongodb.net/?appName=Cluster0";
+  let isDemo = !MONGODB_URI || MONGODB_URI.includes("YOUR_MONGODB_URI");
   let dbConnectionError: string | null = null;
 
+  mongoose.set("strictQuery", false);
+
   if (!isDemo) {
-    mongoose.connect(MONGODB_URI)
-      .then(() => {
-        console.log("✅ Connected to MongoDB");
-        dbConnectionError = null;
-        isDemo = false; // Successfully connected, so not in demo mode
-      })
-      .catch((err) => {
-        console.error("MongoDB connection failed:", err.message);
-        dbConnectionError = err.message;
-        isDemo = true; 
-      });
+    try {
+      await mongoose.connect(MONGODB_URI);
+      console.log("✅ Connected to MongoDB");
+      dbConnectionError = null;
+      isDemo = false;
+    } catch (err: any) {
+      console.error("MongoDB connection failed:", err.message);
+      dbConnectionError = err.message;
+      isDemo = true;
+    }
+  } else {
+    console.warn("⚠️ Running in demo mode because no valid MongoDB URI is configured.");
   }
 
   // Middleware to check DB connection
@@ -272,8 +276,16 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  server.on("error", (err: any) => {
+    if (err?.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already in use. Set a different PORT in .env or stop the process using it.`);
+      process.exit(1);
+    }
+    throw err;
   });
 }
 
