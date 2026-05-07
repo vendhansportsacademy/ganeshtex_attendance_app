@@ -129,18 +129,20 @@ export default function AdminPanel() {
     }
   };
 
-  const exportToCSV = () => {
-    api.get(`/admin/export/csv?month=${selectedMonth}`)
-      .then((res: any) => {
-        const blob = new Blob([res], { type: "text/csv" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `attendance_${selectedMonth}.csv`;
-        a.click();
-        showToast("Report downloaded successfully", "success");
-      })
-      .catch(() => showToast("Failed to export report", "error"));
+  const exportToCSV = async () => {
+    try {
+      const csvText = await api.get(`/admin/export/csv?month=${selectedMonth}`, undefined, { responseType: "text" });
+      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `attendance_${selectedMonth}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showToast("Report downloaded successfully", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to export report", "error");
+    }
   };
 
   const openEditModal = (emp: any) => {

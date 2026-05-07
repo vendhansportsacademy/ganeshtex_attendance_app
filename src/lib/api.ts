@@ -1,5 +1,5 @@
 export const api = {
-  async request(method: "GET" | "POST" | "PUT" | "DELETE", endpoint: string, bodyOrParams?: any) {
+  async request(method: "GET" | "POST" | "PUT" | "DELETE", endpoint: string, bodyOrParams?: any, options?: { responseType?: "json" | "text" }) {
     const isPostOrPut = method === "POST" || method === "PUT";
     let url = `/api${endpoint}`;
     let fetchOptions: RequestInit = { method };
@@ -26,6 +26,20 @@ export const api = {
       throw new Error("The backend server is still initializing. Please wait a moment and try again.");
     }
 
+    // If response type is text, return raw text
+    if (options?.responseType === "text") {
+      if (!res.ok) {
+        try {
+          const errorJson = JSON.parse(text);
+          throw new Error(errorJson.error || `Request failed with status ${res.status}`);
+        } catch {
+          throw new Error(`Request failed with status ${res.status}`);
+        }
+      }
+      return text;
+    }
+
+    // Default: parse as JSON
     let result;
     try {
       result = text ? JSON.parse(text) : {};
@@ -45,8 +59,8 @@ export const api = {
     return this.request("POST", endpoint, data);
   },
 
-  async get(endpoint: string, params?: any) {
-    return this.request("GET", endpoint, params);
+  async get(endpoint: string, params?: any, options?: { responseType?: "json" | "text" }) {
+    return this.request("GET", endpoint, params, options);
   },
 
   async put(endpoint: string, data: any) {
