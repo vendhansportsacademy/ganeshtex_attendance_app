@@ -13,7 +13,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function startServer() {
+async function createApp() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
   const HOST = process.env.HOST || "0.0.0.0";
@@ -45,9 +45,6 @@ async function startServer() {
 
   // Middleware to check DB connection
   const checkConnection = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    // If not in demo mode but connection is lost, try to proceed if possible or return error
-    // In our case, we fallback to isDemo = true on initial failure, so this primarily 
-    // handles mid-session disconnects if isDemo was originally false.
     if (!isDemo && mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) {
       return res.status(503).json({ error: "Database connection lost. Please refresh or check your configuration." });
     }
@@ -196,20 +193,19 @@ async function startServer() {
   });
 
   app.get("/api/admin/reports/monthly", checkConnection, async (req, res) => {
-    const { month } = req.query; // format: YYYY-MM
+    const { month } = req.query;
     try {
       if (isDemo) {
-        // Return matching demo data or all if no month provided
         return res.json(demoAttendance);
       }
       const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
       const start = startOfMonth(targetDate);
       const end = endOfMonth(targetDate);
-      
+
       const records = await Attendance.find({
         checkIn: { $gte: start, $lte: end }
       }).sort({ checkIn: -1 });
-      
+
       res.json(records);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -231,8 +227,8 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
+    res.json({
+      status: "ok",
       mode: !isDemo ? "production" : "demo",
       dbConnected: mongoose.connection.readyState === 1
     });
@@ -247,7 +243,7 @@ async function startServer() {
         }
         return res.json(demoAttendance);
       }
-      
+
       const query = date ? { date: String(date) } : {};
       const records = await Attendance.find(query).sort({ checkIn: -1 }).limit(200);
       res.json(records);
@@ -262,19 +258,32 @@ async function startServer() {
     res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
+  // Serve static files in production
+  if (process.env.NODE_ENV === "production") {
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  } else {
+    // Dev mode: Vite middleware
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
   }
+
+  return app;
+}
+
+// Vercel: export the app without starting a server
+const app = await createApp();
+
+// For local development: start server if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const PORT = Number(process.env.PORT) || 3000;
+  const HOST = process.env.HOST || "0.0.0.0";
 
   const server = app.listen(PORT, HOST, () => {
     console.log(`Server running on http://localhost:${PORT}`);
@@ -289,4 +298,6 @@ async function startServer() {
   });
 }
 
-startServer();
+// Export for Vercel
+export { app, createApp };
+export default app;
