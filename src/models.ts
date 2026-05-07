@@ -8,7 +8,7 @@ const UserSchema = new Schema({
   joiningDate: { type: Date, default: Date.now },
 });
 
-export const User = mongoose.model("User", userSchema);
+export const User = mongoose.model("User", UserSchema);
 
 const AttendanceSchema = new Schema({
   userName: { type: String, required: true },
@@ -26,4 +26,4 @@ const AttendanceSchema = new Schema({
   deviceId: { type: String },
 });
 
-export const Attendance = mongoose.model("Attendance", attendanceSchema);
+export const Attendance = mongoose.model("Attendance", AttendanceSchema);

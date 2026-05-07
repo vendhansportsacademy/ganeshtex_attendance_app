@@ -2,40 +2,35 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-// IMPORTANT: No .ts extension here
-import { User, Attendance } from "./src/models"; 
+// IMPORTANT: Use .js extension for the import to satisfy Node's ESM rules
+import { User, Attendance } from "./src/models.js"; 
 import { format, parse, differenceInMinutes, isAfter, startOfMonth, endOfMonth } from "date-fns";
 
 dotenv.config();
 
 const app = express();
 
-// Enable CORS for mobile and web
+// Enable CORS for all platforms (Mobile, Web, etc.)
 app.use(cors());
 app.use(express.json());
 
-// 1. Use the provided URI, but ensure it's correctly loaded
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://ganeshtex:ganeshtex123@cluster0.0a3heot.mongodb.net/?appName=Cluster0";
 
-// 2. Database connection logic (Non-blocking for Vercel)
+// Robust Database Connection logic
 mongoose.connect(MONGODB_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
+  .then(() => console.log("✅ MongoDB Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// 3. API Routes
-app.get("/api/status", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    db: mongoose.connection.readyState === 1 ? "connected" : "connecting/error" 
-  });
+// API ROUTES
+app.get("/api/health", (req, res) => {
+  res.json({ status: "alive", dbState: mongoose.connection.readyState });
 });
 
 app.get("/api/employees", async (req, res) => {
   try {
     const employees = await User.find({ role: "employee" }).sort({ name: 1 });
-    res.json(employees || []); // Return empty array instead of null
+    res.json(employees || []);
   } catch (err: any) {
-    console.error("Fetch employees error:", err);
     res.status(500).json({ error: "Failed to fetch employees", details: err.message });
   }
 });
@@ -72,15 +67,19 @@ app.post("/api/attendance/toggle", async (req, res) => {
   }
 });
 
-// Admin Route
-app.get("/api/admin/attendance", async (req, res) => {
-  try {
-    const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
-    res.json(records);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+// Admin reports route
+app.get("/api/admin/reports/monthly", async (req, res) => {
+    const { month } = req.query;
+    try {
+      const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
+      const records = await Attendance.find({
+        checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
+      }).sort({ checkIn: -1 });
+      res.json(records);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
 });
 
-// IMPORTANT: Standard Vercel Export
+// IMPORTANT: Export standard Express app for Vercel
 export default app;
