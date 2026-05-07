@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Clock, CheckCircle2, User, AlertCircle, Info } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle, Info, Search, X, History, Calendar } from "lucide-react";
 import { api } from "../lib/api";
 import { format } from "date-fns";
 import { cn } from "../lib/utils";
+import { useToast } from "./Toast";
 
 export default function Dashboard() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -11,6 +12,12 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [employeeHistory, setEmployeeHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -41,192 +48,415 @@ export default function Dashboard() {
       const res = await api.post("/attendance/toggle", { userName: employee.name });
 
       if (res.status === "present") {
-        setAttendance([...attendance, res.attendance || { userName: employee.name }]);
+        setAttendance(prev => [...prev, res.attendance || { userName: employee.name }]);
+        showToast(`Checked in successfully for ${employee.name}`, "success");
       } else if (res.status === "checked-out") {
-        setAttendance(attendance.map((a) => (a.userName === employee.name ? res.attendance : a)));
+        setAttendance(prev => prev.map(a => a.userName === employee.name ? res.attendance : a));
+        showToast(`Checked out successfully`, "success");
       } else {
-        setAttendance(attendance.filter((a) => a.userName !== employee.name));
+        setAttendance(prev => prev.filter(a => a.userName !== employee.name));
+        showToast(`Attendance removed`, "info");
       }
     } catch (err: any) {
       setError(err.message || "Failed to update attendance");
+      showToast(err.message || "Failed to update attendance", "error");
+    }
+  };
+
+  const viewHistory = async (employee: any) => {
+    setSelectedEmployee(employee);
+    setShowHistory(true);
+    setLoadingHistory(true);
+    try {
+      const data = await api.get(`/admin/reports/monthly?month=${format(new Date(), "yyyy-MM")}`);
+      const filtered = data.filter((r: any) => r.userName === employee.name);
+      setEmployeeHistory(filtered);
+    } catch (err: any) {
+      console.error(err);
+      setEmployeeHistory([]);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
   const getAttendanceRecord = (name: string) => attendance.find((a) => a.userName === name);
   const isMarked = (name: string) => attendance.some((a) => a.userName === name);
   const isCheckedOut = (name: string) => attendance.some((a) => a.userName === name && a.checkOut);
+
+  const filteredEmployees = employees.filter(emp =>
+    emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.department.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const markedCount = attendance.length;
+  const presentCount = attendance.filter(a => !a.checkOut).length;
   const totalCount = employees.length;
   const progressPercent = totalCount > 0 ? (markedCount / totalCount) * 100 : 0;
 
+  const stats = [
+    { label: "Present", count: presentCount, color: "emerald", icon: CheckCircle2 },
+    { label: "Checked Out", count: markedCount - presentCount, color: "blue", icon: Clock },
+    { label: "Absent", count: totalCount - markedCount, color: "slate", icon: AlertCircle },
+    { label: "Total", count: totalCount, color: "brand", icon: Info },
+  ];
+
   return (
-    <div className="p-4 sm:p-6 md:p-8 lg:p-12 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-blue-100 shadow-xl p-4 sm:p-6 md:p-8 relative overflow-hidden">
-        {/* Subtle background gradient */}
-        <div className="absolute top-0 right-0 w-32 h-32 sm:w-48 sm:h-48 bg-blue-100/30 blur-3xl rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 sm:w-48 sm:h-48 bg-blue-50/50 blur-3xl rounded-full pointer-events-none" />
-
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 sm:mb-8">
-          <div>
-            <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-blue-500/60 mb-1">Attendance Register</p>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800">
-              {format(currentTime, "EEEE, dd MMMM yyyy")}
-            </h2>
-          </div>
-          <div className="bg-blue-50 border border-blue-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center shadow-md min-w-[100px]">
-            <p className="text-xl sm:text-2xl font-black font-mono text-brand leading-none mb-1">
-              {format(currentTime, "h:mm")}
-            </p>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{format(currentTime, "a")}</p>
-          </div>
+    <div className="p-4 sm:p-6 md:p-8 lg:p-12 max-w-5xl mx-auto">
+      {/* Header with Search */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-blue-500/60 mb-1">Attendance Register</p>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800">
+            {format(currentTime, "EEEE, dd MMMM yyyy")}
+          </h2>
         </div>
-
-        {/* Info Box */}
-        <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 mb-6 sm:mb-8 flex gap-3 items-start">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
-            <Info size={14} />
-          </div>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
-            Tap your name to mark attendance. Time is captured automatically.
-          </p>
-        </div>
-
-        {/* Section Title */}
-        <div className="flex items-center gap-3 mb-4 sm:mb-6">
-          <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-slate-400">Employees — Tap to mark</p>
-        </div>
-
-        {/* Error State */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl flex items-center gap-3 text-sm">
-            <AlertCircle size={18} />
-            <span className="flex-1">{error}</span>
-            <button onClick={loadData} className="underline font-bold whitespace-nowrap">Retry</button>
-          </div>
-        )}
-
-        {/* Employee List */}
-        <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-          <AnimatePresence mode="popLayout">
-            {employees.length === 0 && !loading && (
-              <div className="text-center py-8 sm:py-12 text-slate-300">
-                <User size={40} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm font-medium">No employees found</p>
-              </div>
-            )}
-
-            {employees.map((emp, index) => (
-              <motion.div
-                key={emp._id || index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => toggleAttendance(emp)}
-                className={cn(
-                  "flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border transition-all cursor-pointer group",
-                  isMarked(emp.name)
-                    ? "bg-blue-50/50 border-blue-100"
-                    : "bg-white border-slate-200 hover:border-blue-200 hover:shadow-md"
-                )}
-              >
-                {/* Avatar */}
-                <div
-                  className={cn(
-                    "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-lg font-bold uppercase transition-transform group-hover:scale-105",
-                    getAvatarColor(index)
-                  )}
-                >
-                  {emp.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-base sm:text-lg text-slate-800 leading-tight mb-0.5 truncate">{emp.name}</h4>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-xs sm:text-sm text-slate-500 font-medium truncate max-w-[120px] sm:max-w-none">
-                      {emp.department}
-                    </p>
-                    {isMarked(emp.name) && (
-                      <span
-                        className={cn(
-                          "text-[9px] sm:text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md whitespace-nowrap",
-                          isCheckedOut(emp.name)
-                            ? "bg-slate-100 text-slate-500"
-                            : "bg-emerald-100 text-emerald-600"
-                        )}
-                      >
-                        {isCheckedOut(emp.name) ? "Logged Out" : "Present"}
-                      </span>
-                    )}
-                  </div>
-                  {isMarked(emp.name) && (
-                    <div className="flex gap-3 sm:gap-4 mt-1 sm:mt-2 font-mono text-[10px] sm:text-xs text-slate-500">
-                      <div className="truncate">
-                        IN: <span className="text-slate-700">{format(new Date(getAttendanceRecord(emp.name)?.checkIn), "hh:mm a")}</span>
-                      </div>
-                      {isCheckedOut(emp.name) && (
-                        <div className="truncate">
-                          OUT: <span className="text-slate-700">{format(new Date(getAttendanceRecord(emp.name)?.checkOut), "hh:mm a")}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Checkbox */}
-                <div
-                  className={cn(
-                    "w-8 h-8 sm:w-9 sm:h-9 rounded-xl border-2 flex items-center justify-center transition-all flex-shrink-0",
-                    isMarked(emp.name)
-                      ? isCheckedOut(emp.name)
-                        ? "bg-slate-100 border-slate-200 text-slate-400"
-                        : "bg-brand border-brand text-white scale-110 shadow-lg shadow-brand/20"
-                      : "border-slate-300 group-hover:border-blue-300"
-                  )}
-                >
-                  {isMarked(emp.name) && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      {isCheckedOut(emp.name) ? <Clock size={16} /> : <CheckCircle2 size={20} />}
-                    </motion.div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {/* Footer Progress */}
-        <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 sm:p-6">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center gap-2 text-slate-600">
-              <User size={16} />
-              <span className="text-xs font-bold uppercase tracking-widest">Marked present</span>
-            </div>
-            <p className="text-emerald-600 font-black font-mono tracking-tighter text-lg">
-              {markedCount}/{totalCount}
-            </p>
-          </div>
-          <div className="h-2 w-full bg-blue-100 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${progressPercent}%` }}
-              className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full"
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search employees..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
             />
           </div>
         </div>
       </div>
+
+      {/* Quick Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          const colorClasses = {
+            emerald: "bg-emerald-50 border-emerald-100 text-emerald-600",
+            blue: "bg-blue-50 border-blue-100 text-blue-600",
+            slate: "bg-slate-50 border-slate-100 text-slate-600",
+            brand: "bg-brand/10 border-brand/20 text-brand",
+          };
+          return (
+            <div
+              key={stat.label}
+              className={cn(
+                "rounded-xl border p-4 flex items-center gap-3 transition-transform hover:scale-[1.02]",
+                colorClasses[stat.color as keyof typeof colorClasses]
+              )}
+            >
+              <div className="p-2 rounded-lg bg-white/50">
+                <Icon size={20} />
+              </div>
+              <div>
+                <p className="text-2xl font-black font-mono">{stat.count}</p>
+                <p className="text-xs font-medium uppercase tracking-wider opacity-70">{stat.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Main Card */}
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-lg overflow-hidden">
+        {/* Current Time & Progress */}
+        <div className="p-4 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-blue-50/50 to-transparent">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-3xl font-black font-mono text-slate-800 leading-none">
+                  {format(currentTime, "h:mm")}
+                </p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                  {format(currentTime, "aaa")}
+                </p>
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Today's Progress</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercent}%` }}
+                      className={cn(
+                        "h-full rounded-full transition-all",
+                        progressPercent >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-blue-500 to-brand"
+                      )}
+                    />
+                  </div>
+                  <span className="text-sm font-bold text-slate-600">{Math.round(progressPercent)}%</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-black font-mono text-brand">{markedCount}/{totalCount}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Marked Present</p>
+            </div>
+          </div>
+          {/* Mobile progress bar */}
+          <div className="sm:hidden mb-2">
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  progressPercent >= 100 ? "bg-emerald-500" : "bg-gradient-to-r from-blue-500 to-brand"
+                )}
+              />
+            </div>
+            <p className="text-xs text-slate-500 text-right mt-1">{Math.round(progressPercent)}% complete</p>
+          </div>
+        </div>
+
+        {/* Info Box */}
+        <div className="mx-4 sm:mx-6 mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 flex gap-3 items-start">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
+            <Info size={14} />
+          </div>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
+            Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1" /> icon to view their monthly history.
+          </p>
+        </div>
+
+        {/* Employee List */}
+        <div className="p-4 sm:p-6">
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="animate-pulse flex items-center gap-4 p-4 rounded-xl bg-slate-50">
+                  <div className="w-12 h-12 rounded-full bg-slate-200" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-200 rounded w-1/3" />
+                    <div className="h-3 bg-slate-200 rounded w-1/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <AlertCircle className="mx-auto text-red-400 mb-3" size={48} />
+              <p className="text-slate-600 mb-4">{error}</p>
+              <button
+                onClick={loadData}
+                className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all"
+              >
+                Retry
+              </button>
+            </div>
+          ) : filteredEmployees.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <Search className="mx-auto mb-3" size={40} />
+              <p className="font-medium">No employees found</p>
+              <p className="text-sm mt-1">Try adjusting your search</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredEmployees.map((emp, index) => (
+                <motion.div
+                  key={emp._id || index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  className={cn(
+                    "flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all group",
+                    isMarked(emp.name)
+                      ? "bg-emerald-50/50 border-emerald-100"
+                      : "bg-white border-slate-200 hover:border-blue-200 hover:shadow-md"
+                  )}
+                >
+                  {/* Avatar */}
+                  <div
+                    className={cn(
+                      "w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-lg font-bold uppercase transition-transform group-hover:scale-105 shadow-sm",
+                      getAvatarColor(index)
+                    )}
+                  >
+                    {emp.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-base sm:text-lg text-slate-800 leading-tight mb-0.5 truncate">
+                      {emp.name}
+                    </h4>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs sm:text-sm text-slate-500 font-medium truncate max-w-[120px] sm:max-w-none">
+                        {emp.department}
+                      </p>
+                      {isMarked(emp.name) && (
+                        <span
+                          className={cn(
+                            "text-[9px] sm:text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md whitespace-nowrap",
+                            isCheckedOut(emp.name)
+                              ? "bg-slate-100 text-slate-500"
+                              : "bg-emerald-100 text-emerald-600"
+                          )}
+                        >
+                          {isCheckedOut(emp.name) ? "Logged Out" : "Present"}
+                        </span>
+                      )}
+                    </div>
+                    {isMarked(emp.name) && (
+                      <div className="flex gap-3 sm:gap-4 mt-1 sm:mt-2 font-mono text-[10px] sm:text-xs text-slate-500">
+                        <div className="truncate">
+                          IN: <span className="text-slate-700 font-medium">{format(new Date(getAttendanceRecord(emp.name)?.checkIn), "hh:mm a")}</span>
+                        </div>
+                        {isCheckedOut(emp.name) && (
+                          <div className="truncate">
+                            OUT: <span className="text-slate-700 font-medium">{format(new Date(getAttendanceRecord(emp.name)?.checkOut), "hh:mm a")}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); viewHistory(emp); }}
+                      className="p-2 rounded-lg text-slate-400 hover:text-brand hover:bg-brand/10 transition-all"
+                      title="View History"
+                    >
+                      <History size={18} />
+                    </button>
+                    <div
+                      onClick={() => toggleAttendance(emp)}
+                      className={cn(
+                        "w-10 h-10 sm:w-11 sm:h-11 rounded-xl border-2 flex items-center justify-center transition-all cursor-pointer",
+                        isMarked(emp.name)
+                          ? isCheckedOut(emp.name)
+                            ? "bg-slate-100 border-slate-200 text-slate-400"
+                            : "bg-brand border-brand text-white shadow-lg shadow-brand/20"
+                          : "border-slate-300 group-hover:border-brand hover:bg-brand/5"
+                      )}
+                    >
+                      {isMarked(emp.name) && (
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                          {isCheckedOut(emp.name) ? <Clock size={18} /> : <CheckCircle2 size={20} />}
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* History Modal */}
+      <AnimatePresence>
+        {showHistory && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowHistory(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-transparent">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center text-lg font-bold text-brand">
+                    {selectedEmployee?.name?.[0]}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">{selectedEmployee?.name}</h3>
+                    <p className="text-sm text-slate-500">{selectedEmployee?.department} • {selectedEmployee?.empId || "No ID"}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X size={24} className="text-slate-400" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[50vh]">
+                {loadingHistory ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-16 bg-slate-50 rounded-xl" />
+                    ))}
+                  </div>
+                ) : employeeHistory.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <Calendar className="mx-auto mb-3" size={40} />
+                    <p>No attendance records this month</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {employeeHistory.map((record: any) => (
+                      <div
+                        key={record._id}
+                        className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 transition-all"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
+                            <Calendar size={18} className="text-blue-500" />
+                          </div>
+                          <div>
+                            <p className="font-mono text-sm font-medium text-slate-700">{record.date}</p>
+                            <p className="text-xs text-slate-400">
+                              {record.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "--"} -{" "}
+                              {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "--"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span
+                            className={cn(
+                              "px-3 py-1 rounded-lg text-[10px] font-black uppercase",
+                              record.status === "Present" || record.status === "Checked In"
+                                ? "bg-emerald-100 text-emerald-600"
+                                : "bg-amber-100 text-amber-600"
+                            )}
+                          >
+                            {record.status}
+                          </span>
+                          {record.workHours && (
+                            <p className="text-xs text-slate-500 mt-1 font-mono">{record.workHours} hrs</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {employeeHistory.length > 0 && (
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <p className="text-slate-500">Total Days Present</p>
+                      <p className="text-2xl font-black text-brand">{employeeHistory.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Avg Hours</p>
+                      <p className="text-2xl font-black text-slate-700">
+                        {employeeHistory.length > 0
+                          ? (employeeHistory.reduce((sum: number, r: any) => sum + (r.workHours || 0), 0) / employeeHistory.length).toFixed(1)
+                          : "0.0"}{" "}
+                        hrs
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 function getAvatarColor(index: number) {
   const colors = [
+    "bg-brand text-white",
     "bg-blue-500 text-white",
-    "bg-blue-400 text-white",
-    "bg-blue-600 text-white",
     "bg-indigo-500 text-white",
     "bg-sky-500 text-white",
+    "bg-violet-500 text-white",
   ];
   return colors[index % colors.length];
 }

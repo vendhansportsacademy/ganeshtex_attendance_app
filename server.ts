@@ -49,20 +49,31 @@ api.get("/employees", async (req, res) => {
 });
 
 // THIS ROUTE WAS MISSING (Fixes the "Registering" 404)
-api.post("/employees", async (req, res) => {
-  try {
-    const employee = new User({ ...req.body, role: "employee" });
-    await employee.save();
-    res.json(employee);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
+ api.post("/employees", async (req, res) => {
+   try {
+     const employee = new User({ ...req.body, role: "employee" });
+     await employee.save();
+     res.json(employee);
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
 
-api.delete("/employees/:id", async (req, res) => {
-  try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
+ api.put("/employees/:id", async (req, res) => {
+   try {
+     const employee = await User.findByIdAndUpdate(
+       req.params.id,
+       req.body,
+       { new: true, runValidators: true }
+     );
+     res.json(employee);
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
+
+ api.delete("/employees/:id", async (req, res) => {
+   try {
+     await User.findByIdAndDelete(req.params.id);
+     res.json({ success: true });
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
 
 // --- ATTENDANCE ---
 api.get("/attendance/today", async (req, res) => {
@@ -101,24 +112,54 @@ api.post("/attendance/toggle", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- ADMIN REPORTS ---
-api.get("/admin/attendance", async (req, res) => {
-  try {
-    const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
-    res.json(records);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
+ // --- ADMIN REPORTS ---
+ api.get("/admin/attendance", async (req, res) => {
+   try {
+     const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
+     res.json(records);
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
 
-api.get("/admin/reports/monthly", async (req, res) => {
-  const { month } = req.query;
-  try {
-    const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
-    const records = await Attendance.find({
-      checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
-    }).sort({ checkIn: -1 });
-    res.json(records);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
+ api.get("/admin/reports/monthly", async (req, res) => {
+   const { month } = req.query;
+   try {
+     const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
+     const records = await Attendance.find({
+       checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
+     }).sort({ checkIn: -1 });
+     res.json(records);
+   } catch (err: any) { res.status(500).json({ error: err.message }); }
+ });
+
+ // CSV Export
+ api.get("/admin/export/csv", async (req, res) => {
+   const { month } = req.query;
+   try {
+     const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
+     const records = await Attendance.find({
+       checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
+     }).sort({ checkIn: -1 });
+
+     const headers = ["Employee", "Date", "Check In", "Check Out", "Status", "Work Hours", "Late Minutes"];
+     const rows = records.map(r => [
+       r.userName,
+       r.date,
+       r.checkIn ? format(new Date(r.checkIn), "hh:mm a") : "",
+       r.checkOut ? format(new Date(r.checkOut), "hh:mm a") : "",
+       r.status,
+       r.workHours?.toString() || "0",
+       r.lateMinutes?.toString() || "0",
+     ]);
+
+     const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+
+     res.setHeader("Content-Type", "text/csv");
+     res.setHeader("Content-Disposition", `attachment; filename=attendance_${format(targetDate, "yyyy-MM")}.csv`);
+     res.send(csvContent);
+   } catch (err: any) {
+     res.status(500).json({ error: err.message });
+   }
+ });
 
 // 3. Routing: Handle both /api/path and /path
 app.use("/api", api);
