@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import { register } from "@vercel/express";
 import { User, Attendance } from "./src/models.ts";
 import { format, parse, differenceInMinutes, isAfter, startOfMonth, endOfMonth } from "date-fns";
 
@@ -258,14 +259,14 @@ async function createApp() {
     res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
   });
 
-  // Serve static files in production
-  if (process.env.NODE_ENV === "production") {
+  // Only serve static files locally (production mode without Vercel)
+  if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
-  } else {
+  } else if (process.env.NODE_ENV !== "production") {
     // Dev mode: Vite middleware
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -277,27 +278,19 @@ async function createApp() {
   return app;
 }
 
-// Vercel: export the app without starting a server
+// Create the Express app
 const app = await createApp();
 
-// For local development: start server if called directly
+// Local development: start server if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   const PORT = Number(process.env.PORT) || 3000;
   const HOST = process.env.HOST || "0.0.0.0";
 
-  const server = app.listen(PORT, HOST, () => {
+  app.listen(PORT, HOST, () => {
     console.log(`Server running on http://localhost:${PORT}`);
-  });
-
-  server.on("error", (err: any) => {
-    if (err?.code === "EADDRINUSE") {
-      console.error(`Port ${PORT} is already in use. Set a different PORT in .env or stop the process using it.`);
-      process.exit(1);
-    }
-    throw err;
   });
 }
 
-// Export for Vercel
+// Vercel serverless export using @vercel/express adapter
+export default register(app, { registerFirst: true });
 export { app, createApp };
-export default app;
