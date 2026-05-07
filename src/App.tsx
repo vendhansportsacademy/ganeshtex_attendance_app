@@ -18,40 +18,44 @@ export default function App() {
   const [loading, setLoading] = useState(false);
 
   return (
-    <div className="min-h-screen bg-surface selection:bg-brand/30">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-100 selection:bg-brand/30">
       {/* Top Navigation Bar */}
-      <nav className="glass border-b border-white/5 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
+      <nav className="glass border-b border-blue-100/50 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center shadow-md">
             <Clock className="text-white w-5 h-5" />
           </div>
-          <h1 className="text-lg font-bold tracking-tight text-white">Chronos</h1>
+          <h1 className="text-lg font-bold tracking-tight text-blue-900">Chronos</h1>
         </div>
-        
-        <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-          <button 
+
+        <div className="flex bg-blue-50/80 p-1 rounded-xl border border-blue-100">
+          <button
             onClick={() => setActiveTab("attendance")}
             className={cn(
-              "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-              activeTab === "attendance" ? "bg-brand text-white shadow-lg" : "text-white/40 hover:text-white/60"
+              "px-3 sm:px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+              activeTab === "attendance"
+                ? "bg-brand text-white shadow-md"
+                : "text-blue-600/60 hover:text-blue-700"
             )}
           >
             Register
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab("admin")}
             className={cn(
-              "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-              activeTab === "admin" ? "bg-brand text-white shadow-lg" : "text-white/40 hover:text-white/60"
+              "px-3 sm:px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+              activeTab === "admin"
+                ? "bg-brand text-white shadow-md"
+                : "text-blue-600/60 hover:text-blue-700"
             )}
           >
-             Management
+            Management
           </button>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="pb-12 bg-surface/50">
+      <main className="pb-12 bg-gradient-to-br from-blue-50/30 via-white/50 to-slate-100/30 min-h-screen">
         <AnimatePresence mode="wait">
           {activeTab === "attendance" ? (
             <motion.div
@@ -78,13 +82,17 @@ export default function App() {
   );
 }
 
-function NavItem({ icon, label, active = false }: { icon: ReactNode, label: string, active?: boolean }) {
+function NavItem({ icon, label, active = false }: { icon: ReactNode; label: string; active?: boolean }) {
   return (
-    <button className={cn(
-      "flex items-center gap-3 w-full p-3 rounded-xl transition-all duration-200 group",
-      active ? "bg-brand text-white shadow-lg shadow-brand/20" : "text-white/40 hover:text-white hover:bg-white/5"
-    )}>
-      <span className={cn(active ? "text-white" : "text-white/40 group-hover:text-white")}>{icon}</span>
+    <button
+      className={cn(
+        "flex items-center gap-3 w-full p-3 rounded-xl transition-all duration-200 group",
+        active
+          ? "bg-brand text-white shadow-lg shadow-brand/20"
+          : "text-blue-600/40 hover:text-blue-700 hover:bg-blue-50"
+      )}
+    >
+      <span className={cn(active ? "text-white" : "text-blue-600/40 group-hover:text-blue-600")}>{icon}</span>
       <span className="text-sm font-medium">{label}</span>
     </button>
   );
