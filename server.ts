@@ -2,55 +2,85 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-import { User, Attendance } from "./src/models.ts";
+// IMPORTANT: No .ts extension here
+import { User, Attendance } from "./src/models"; 
 import { format, parse, differenceInMinutes, isAfter, startOfMonth, endOfMonth } from "date-fns";
 
 dotenv.config();
 
 const app = express();
+
+// Enable CORS for mobile and web
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI?.trim() || "mongodb+srv://ganeshtex:ganeshtex123@cluster0.0a3heot.mongodb.net/?appName=Cluster0";
+// 1. Use the provided URI, but ensure it's correctly loaded
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://ganeshtex:ganeshtex123@cluster0.0a3heot.mongodb.net/?appName=Cluster0";
 
-// Standard connection logic (Avoid top-level await for better cold starts)
+// 2. Database connection logic (Non-blocking for Vercel)
 mongoose.connect(MONGODB_URI)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch(err => console.error("❌ MongoDB Error:", err));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// Demo data fallback logic
-let demoEmployees = [
-  { _id: "1", name: "Arun Kumar", department: "Engineering", empId: "EMP-2847", role: "employee" },
-  { _id: "2", name: "Meena Siva", department: "HR & Admin", empId: "EMP-1093", role: "employee" }
-];
-let demoAttendance: any[] = [];
-const isDemo = !process.env.MONGODB_URI;
-
-// --- API ROUTES ---
-
+// 3. API Routes
 app.get("/api/status", (req, res) => {
-  res.json({ status: "online", dbState: mongoose.connection.readyState });
+  res.json({ 
+    status: "ok", 
+    db: mongoose.connection.readyState === 1 ? "connected" : "connecting/error" 
+  });
 });
 
 app.get("/api/employees", async (req, res) => {
   try {
-    if (isDemo) return res.json(demoEmployees);
     const employees = await User.find({ role: "employee" }).sort({ name: 1 });
-    res.json(employees);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    res.json(employees || []); // Return empty array instead of null
+  } catch (err: any) {
+    console.error("Fetch employees error:", err);
+    res.status(500).json({ error: "Failed to fetch employees", details: err.message });
+  }
 });
-
-// ... Keep your other /api routes (post, put, delete, etc.) here ...
-// Ensure all your backend routes start with /api/
 
 app.post("/api/attendance/toggle", async (req, res) => {
-    // ... your existing logic ...
+  const { userName } = req.body;
+  const now = new Date();
+  const dateStr = format(now, "yyyy-MM-dd");
+
+  try {
+    const existing = await Attendance.findOne({ userName, date: dateStr });
+    if (existing) {
+      if (!existing.checkOut) {
+        existing.checkOut = now;
+        const diff = differenceInMinutes(now, existing.checkIn);
+        existing.workHours = Number((diff / 60).toFixed(2));
+        await existing.save();
+        return res.json({ status: "checked-out", attendance: existing });
+      } else {
+        await Attendance.findByIdAndDelete(existing._id);
+        return res.json({ status: "absent" });
+      }
+    } else {
+      const officialTime = parse("09:15", "HH:mm", now);
+      let status: "Present" | "Late" = isAfter(now, officialTime) ? "Late" : "Present";
+      let lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
+
+      const attendance = new Attendance({ userName, date: dateStr, checkIn: now, status, lateMinutes });
+      await attendance.save();
+      return res.json({ status: "present", attendance });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get("/api/admin/reports/monthly", async (req, res) => {
-    // ... your existing logic ...
+// Admin Route
+app.get("/api/admin/attendance", async (req, res) => {
+  try {
+    const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
+    res.json(records);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Export for Vercel
+// IMPORTANT: Standard Vercel Export
 export default app;
