@@ -11,36 +11,55 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Connection with safety checks
+// --- DATABASE CONNECTION LOGIC ---
 const MONGODB_URI = (process.env.MONGODB_URI || "").trim();
 
-// Stop buffering so we get the real error immediately if it fails
-mongoose.set('bufferCommands', false);
+// This variable stores the connection state so we don't reconnect every time
+let isConnected = false;
 
-if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
-    .then(() => console.log("✅ LIVE DATABASE CONNECTED"))
-    .catch(err => console.error("❌ DATABASE CONNECTION ERROR:", err.message));
-} else {
-  console.error("❌ MONGODB_URI is missing in Environment Variables!");
+async function connectToDatabase() {
+  if (isConnected) return;
+
+  try {
+    if (!MONGODB_URI) throw new Error("MONGODB_URI is missing in Environment Variables");
+    
+    // Connect and wait for it to finish
+    await mongoose.connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000,
+    });
+    
+    isConnected = true;
+    console.log("✅ Database Connected");
+  } catch (err: any) {
+    console.error("❌ Database Connection Failed:", err.message);
+    throw err; // This will trigger a 500 error instead of a crash
+  }
 }
 
-// 2. API Router
+// Middleware: EVERY request will wait for the database connection first
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (err: any) {
+    res.status(503).json({ error: "Database not ready", details: err.message });
+  }
+});
+
+// --- API ROUTES ---
 const api = express.Router();
 
 api.get("/status", (req, res) => {
-  res.json({ 
-    status: "online", 
-    db: mongoose.connection.readyState === 1 ? "connected" : "error",
-    uri_check: MONGODB_URI ? "present" : "missing"
-  });
+  res.json({ status: "online", db: isConnected ? "connected" : "connecting" });
 });
 
 api.get("/employees", async (req, res) => {
   try {
     const employees = await User.find({ role: "employee" }).sort({ name: 1 });
     res.json(employees || []);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 api.post("/attendance/toggle", async (req, res) => {
@@ -72,14 +91,13 @@ api.post("/attendance/toggle", async (req, res) => {
 });
 
 api.get("/attendance/today", async (req, res) => {
-    const dateStr = format(new Date(), "yyyy-MM-dd");
     try {
+      const dateStr = format(new Date(), "yyyy-MM-dd");
       const records = await Attendance.find({ date: dateStr });
       res.json(records);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// Admin Routes
 api.get("/admin/attendance", async (req, res) => {
   try {
     const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
@@ -87,18 +105,6 @@ api.get("/admin/attendance", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-api.get("/admin/reports/monthly", async (req, res) => {
-    const { month } = req.query;
-    try {
-      const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
-      const records = await Attendance.find({
-        checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
-      }).sort({ checkIn: -1 });
-      res.json(records);
-    } catch (err: any) { res.status(500).json({ error: err.message }); }
-});
-
-// 3. Routing
 app.use("/api", api);
 app.use("/", api);
 
