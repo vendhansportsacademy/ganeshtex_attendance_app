@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Clock, CheckCircle2, AlertCircle, Info, Search, X, History, Calendar } from "lucide-react";
+import {
+  Clock, CheckCircle2, AlertCircle, Search, X, History, Calendar,
+  Building2, UserCheck, Users, Bell
+} from "lucide-react";
 import { api } from "../lib/api";
 import { format } from "date-fns";
 import { cn } from "../lib/utils";
@@ -49,7 +52,7 @@ export default function Dashboard() {
 
       if (res.status === "present") {
         setAttendance(prev => [...prev, res.attendance || { userName: employee.name }]);
-        showToast(`Checked in successfully for ${employee.name}`, "success");
+        showToast(`Checked in for ${employee.name}`, "success");
       } else if (res.status === "checked-out") {
         setAttendance(prev => prev.map(a => a.userName === employee.name ? res.attendance : a));
         showToast(`Checked out successfully`, "success");
@@ -97,30 +100,34 @@ export default function Dashboard() {
     { label: "Present", count: presentCount, color: "emerald", icon: CheckCircle2 },
     { label: "Checked Out", count: markedCount - presentCount, color: "blue", icon: Clock },
     { label: "Absent", count: totalCount - markedCount, color: "slate", icon: AlertCircle },
-    { label: "Total", count: totalCount, color: "brand", icon: Info },
+    { label: "Total", count: totalCount, color: "brand", icon: Users },
   ];
 
   return (
     <div className="p-4 sm:p-6 md:p-8 lg:p-12 max-w-5xl mx-auto">
       {/* Header with Search */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-blue-500/60 mb-1">Attendance Register</p>
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800">
-            {format(currentTime, "EEEE, dd MMMM yyyy")}
-          </h2>
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search employees..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full sm:w-64 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-            />
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-brand/10 rounded-xl border border-brand/20">
+            <Users className="text-brand" size={24} />
           </div>
+          <div>
+            <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-blue-500/60 mb-1">Attendance Register</p>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
+              <Calendar size={24} className="text-brand" />
+              {format(currentTime, "EEEE, dd MMMM yyyy")}
+            </h2>
+          </div>
+        </div>
+        <div className="relative w-full sm:w-auto">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search employees..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+          />
         </div>
       </div>
 
@@ -129,25 +136,31 @@ export default function Dashboard() {
         {stats.map((stat) => {
           const Icon = stat.icon;
           const colorClasses = {
-            emerald: "bg-emerald-50 border-emerald-100 text-emerald-600",
-            blue: "bg-blue-50 border-blue-100 text-blue-600",
-            slate: "bg-slate-50 border-slate-100 text-slate-600",
-            brand: "bg-brand/10 border-brand/20 text-brand",
+            emerald: "bg-emerald-50 border-emerald-100",
+            blue: "bg-blue-50 border-blue-100",
+            slate: "bg-slate-50 border-slate-100",
+            brand: "bg-brand/10 border-brand/20",
+          };
+          const textColorClasses = {
+            emerald: "text-emerald-600",
+            blue: "text-blue-600",
+            slate: "text-slate-600",
+            brand: "text-brand",
           };
           return (
             <div
               key={stat.label}
               className={cn(
-                "rounded-xl border p-4 flex items-center gap-3 transition-transform hover:scale-[1.02]",
+                "rounded-xl border p-4 flex items-center gap-3 transition-all hover:shadow-lg hover:scale-[1.02]",
                 colorClasses[stat.color as keyof typeof colorClasses]
               )}
             >
-              <div className="p-2 rounded-lg bg-white/50">
-                <Icon size={20} />
+              <div className={cn("p-2 rounded-lg bg-white/80", textColorClasses[stat.color as keyof typeof textColorClasses])}>
+                <Icon size={22} />
               </div>
               <div>
-                <p className="text-2xl font-black font-mono">{stat.count}</p>
-                <p className="text-xs font-medium uppercase tracking-wider opacity-70">{stat.label}</p>
+                <p className="text-2xl font-black font-mono text-slate-800">{stat.count}</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{stat.label}</p>
               </div>
             </div>
           );
@@ -155,7 +168,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Card */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-lg overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
         {/* Current Time & Progress */}
         <div className="p-4 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-blue-50/50 to-transparent">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -190,7 +203,7 @@ export default function Dashboard() {
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Marked Present</p>
             </div>
           </div>
-          {/* Mobile progress bar */}
+          {/* Mobile progress */}
           <div className="sm:hidden mb-2">
             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
               <motion.div
@@ -209,10 +222,10 @@ export default function Dashboard() {
         {/* Info Box */}
         <div className="mx-4 sm:mx-6 mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 flex gap-3 items-start">
           <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
-            <Info size={14} />
+            <Bell size={14} />
           </div>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
-            Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1" /> icon to view their monthly history.
+            Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1 text-brand" /> icon to view their monthly history.
           </p>
         </div>
 
@@ -234,10 +247,7 @@ export default function Dashboard() {
             <div className="text-center py-12">
               <AlertCircle className="mx-auto text-red-400 mb-3" size={48} />
               <p className="text-slate-600 mb-4">{error}</p>
-              <button
-                onClick={loadData}
-                className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all"
-              >
+              <button onClick={loadData} className="px-6 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all">
                 Retry
               </button>
             </div>
@@ -278,18 +288,20 @@ export default function Dashboard() {
                       {emp.name}
                     </h4>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs sm:text-sm text-slate-500 font-medium truncate max-w-[120px] sm:max-w-none">
+                      <span className="inline-flex items-center gap-1 text-xs sm:text-sm text-slate-500 font-medium">
+                        <Building2 size={12} className="text-slate-400" />
                         {emp.department}
-                      </p>
+                      </span>
                       {isMarked(emp.name) && (
                         <span
                           className={cn(
-                            "text-[9px] sm:text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md whitespace-nowrap",
+                            "text-[9px] sm:text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-md whitespace-nowrap inline-flex items-center gap-1",
                             isCheckedOut(emp.name)
                               ? "bg-slate-100 text-slate-500"
                               : "bg-emerald-100 text-emerald-600"
                           )}
                         >
+                          {isCheckedOut(emp.name) ? <Clock size={8} /> : <CheckCircle2 size={8} />}
                           {isCheckedOut(emp.name) ? "Logged Out" : "Present"}
                         </span>
                       )}
@@ -359,8 +371,14 @@ export default function Dashboard() {
                     {selectedEmployee?.name?.[0]}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-slate-800">{selectedEmployee?.name}</h3>
-                    <p className="text-sm text-slate-500">{selectedEmployee?.department} • {selectedEmployee?.empId || "No ID"}</p>
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <UserCheck size={20} className="text-brand" />
+                      {selectedEmployee?.name}
+                    </h3>
+                    <p className="text-sm text-slate-500 flex items-center gap-1">
+                      <Building2 size={12} />
+                      {selectedEmployee?.department} • {selectedEmployee?.empId || "No ID"}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -424,20 +442,26 @@ export default function Dashboard() {
               </div>
 
               {employeeHistory.length > 0 && (
-                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                <div className="p-6 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30">
                   <div className="flex items-center justify-between text-sm">
-                    <div>
-                      <p className="text-slate-500">Total Days Present</p>
-                      <p className="text-2xl font-black text-brand">{employeeHistory.length}</p>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={16} className="text-brand" />
+                      <div>
+                        <p className="text-slate-500">Total Days Present</p>
+                        <p className="text-2xl font-black text-brand">{employeeHistory.length}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-slate-500">Avg Hours</p>
-                      <p className="text-2xl font-black text-slate-700">
-                        {employeeHistory.length > 0
-                          ? (employeeHistory.reduce((sum: number, r: any) => sum + (r.workHours || 0), 0) / employeeHistory.length).toFixed(1)
-                          : "0.0"}{" "}
-                        hrs
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <Clock size={16} className="text-emerald-600" />
+                      <div>
+                        <p className="text-slate-500">Avg Hours</p>
+                        <p className="text-2xl font-black text-slate-700">
+                          {employeeHistory.length > 0
+                            ? (employeeHistory.reduce((sum: number, r: any) => sum + (r.workHours || 0), 0) / employeeHistory.length).toFixed(1)
+                            : "0.0"}{" "}
+                          hrs
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

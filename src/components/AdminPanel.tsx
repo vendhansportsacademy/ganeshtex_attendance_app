@@ -1,33 +1,26 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Users, UserPlus, Search, Filter, MoreHorizontal, CheckCircle2, Clock, AlertCircle,
-  Trash2, Edit2, X, Calendar, Download, BarChart3, LayoutDashboard, FileText, ChevronDown,
-  CheckSquare, Square
+  Users, UserPlus, Search, Filter, CheckCircle2, Clock, AlertCircle,
+  Trash2, Edit2, X, Calendar, Download, LayoutDashboard, FileText,
+  CheckSquare, Square, Activity, TrendingUp, Building2, UserCheck, BarChart4
 } from "lucide-react";
 import { api } from "../lib/api";
 import { format, parse } from "date-fns";
 import { cn } from "../lib/utils";
 import { useToast } from "./Toast";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
-} from "recharts";
-
-const CHART_COLORS = ["#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDDFE"];
 
 export default function AdminPanel() {
   const [activeView, setActiveView] = useState<"overview" | "attendance" | "employees" | "reports">("overview");
   const [employees, setEmployees] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
-  const [dbStatus, setDbStatus] = useState<{ isDemo: boolean, dbStatus: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
 
   // Modal & Bulk states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,14 +45,12 @@ export default function AdminPanel() {
     setLoading(true);
     setError(null);
     try {
-      const [empData, attData, statusData] = await Promise.all([
+      const [empData, attData] = await Promise.all([
         api.get("/employees"),
         api.get(`/admin/attendance?date=${selectedDate}`),
-        api.get("/status").catch(() => ({ isDemo: true, dbStatus: "Offline" }))
       ]);
       setEmployees(empData);
       setAttendance(attData);
-      setDbStatus(statusData);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to load admin data");
@@ -159,41 +150,26 @@ export default function AdminPanel() {
   };
 
   const filteredEmployees = employees.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) ||
-    e.department.toLowerCase().includes(search.toLowerCase()) ||
-    e.empId?.toLowerCase().includes(search.toLowerCase())
+    e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+    e.department.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+    e.empId?.toLowerCase().includes(employeeSearch.toLowerCase())
   );
 
   // Compute stats
-  const todayPresent = attendance.filter(a => a.date === format(new Date(), "yyyy-MM-dd")).length;
+  const todayPresent = attendance.filter(a => a.date === format(new Date(), "yyyy-MM-dd") && !a.checkOut).length;
   const departments = Array.from(new Set(employees.map(e => e.department)));
   const monthlyRecords = reports.length;
-
-  // Prepare chart data
-  const departmentData = useMemo(() => {
-    const deptCounts: Record<string, number> = {};
-    employees.forEach(emp => {
-      deptCounts[emp.department] = (deptCounts[emp.department] || 0) + 1;
-    });
-    return Object.entries(deptCounts).map(([name, value]) => ({ name, value }));
-  }, [employees]);
-
-  const dailyTrendData = useMemo(() => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const counts: Record<string, number> = {};
-    attendance.forEach(att => {
-      const day = format(new Date(att.checkIn), "EEE");
-      counts[day] = (counts[day] || 0) + 1;
-    });
-    return days.map(day => ({ day: day, present: counts[day] || 0 }));
-  }, [attendance]);
+  const totalWorkHours = reports.reduce((sum, r: any) => sum + (r.workHours || 0), 0);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800">Admin Console</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800 flex items-center gap-3">
+            <BarChart4 className="text-brand" size={28} />
+            Admin Console
+          </h2>
           <div className="flex flex-wrap gap-4 mt-2">
             {[
               { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -235,16 +211,20 @@ export default function AdminPanel() {
 
           {/* Date/ Month Pickers */}
           {activeView === "attendance" && (
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all [color-scheme:light]"
-            />
+            <div className="flex items-center gap-2">
+              <Calendar size={18} className="text-slate-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all [color-scheme:light]"
+              />
+            </div>
           )}
 
           {activeView === "reports" && (
             <div className="flex items-center gap-2">
+              <Calendar size={18} className="text-slate-400" />
               <input
                 type="month"
                 value={selectedMonth}
@@ -257,7 +237,7 @@ export default function AdminPanel() {
                 title="Export to CSV"
               >
                 <Download size={18} />
-                <span className="hidden sm:inline">Export</span>
+                <span className="hidden sm:inline">Export CSV</span>
               </button>
             </div>
           )}
@@ -299,64 +279,117 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* Overview View with Charts */}
+      {/* Overview View */}
       {activeView === "overview" && (
         <div className="space-y-6">
-          {/* Stats Grid */}
+          {/* Stats Grid with Icons */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Total Employees" count={employees.length} icon={<Users className="text-brand" />} color="blue" />
-            <StatCard label="Present Today" count={todayPresent} icon={<CheckCircle2 className="text-emerald-500" />} color="emerald" />
-            <StatCard label="Departments" count={departments.length} icon={<Filter className="text-purple-500" />} color="purple" />
-            <StatCard label="Monthly Records" count={monthlyRecords} icon={<Calendar className="text-amber-500" />} color="amber" />
+            <StatCard
+              label="Total Employees"
+              count={employees.length}
+              icon={<Users size={24} />}
+              color="blue"
+              trend={`+${employees.length} active`}
+            />
+            <StatCard
+              label="Present Today"
+              count={todayPresent}
+              icon={<UserCheck size={24} />}
+              color="emerald"
+              trend={`${employees.length > 0 ? Math.round((todayPresent / employees.length) * 100) : 0}% attendance`}
+            />
+            <StatCard
+              label="Departments"
+              count={departments.length}
+              icon={<Building2 size={24} />}
+              color="purple"
+              trend={`${departments.join(", ")}`}
+            />
+            <StatCard
+              label="Hours This Month"
+              count={totalWorkHours.toFixed(1)}
+              icon={<Clock size={24} />}
+              color="amber"
+              suffix="hrs"
+            />
           </div>
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Department Distribution */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-lg text-slate-800 mb-4">Employees by Department</h3>
-              {departmentData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={departmentData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {departmentData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-slate-400">No data available</div>
-              )}
+          {/* Quick Info Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200 rounded-2xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-white rounded-xl shadow-sm border border-blue-100">
+                  <Activity className="text-blue-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-blue-900 uppercase tracking-wider mb-1">Activity Overview</h3>
+                  <p className="text-slate-700">
+                    {attendance.length} employees have marked attendance today.
+                    {employees.length > attendance.length && ` ${employees.length - attendance.length} are absent.`}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Weekly Trend */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-lg text-slate-800 mb-4">Weekly Attendance</h3>
-              {dailyTrendData.some(d => d.present > 0) ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={dailyTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Bar dataKey="present" fill="#2563EB" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-slate-400">No attendance data yet</div>
-              )}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200 rounded-2xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
+                  <TrendingUp className="text-emerald-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-wider mb-1">Monthly Insight</h3>
+                  <p className="text-slate-700">
+                    {reports.length} total attendance records for {format(parse(selectedMonth, "yyyy-MM", new Date()), "MMMM")}.
+                    {monthlyRecords > 0 ? ` Average: ${(totalWorkHours / monthlyRecords).toFixed(1)} hrs/day` : " No records yet."}
+                  </p>
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Department Breakdown */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <Building2 size={20} className="text-brand" />
+              Department Breakdown
+            </h3>
+            {departments.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {departments.map((dept, i) => {
+                  const count = employees.filter(e => e.department === dept).length;
+                  const percentage = Math.round((count / employees.length) * 100);
+                  return (
+                    <div
+                      key={dept}
+                      className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center",
+                          i % 3 === 0 ? "bg-blue-100 text-blue-600" :
+                          i % 3 === 1 ? "bg-purple-100 text-purple-600" :
+                          "bg-amber-100 text-amber-600"
+                        )}>
+                          <Users size={18} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{dept}</p>
+                          <p className="text-xs text-slate-500">{count} employees</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-black text-brand">{percentage}%</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-slate-400">
+                <Building2 size={48} className="mx-auto mb-2 opacity-50" />
+                <p>No departments assigned yet</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -366,7 +399,10 @@ export default function AdminPanel() {
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="p-4 sm:p-6 border-b border-slate-100">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h3 className="font-bold text-lg text-slate-800">Daily Attendance</h3>
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <Clock className="text-brand" size={20} />
+                Daily Attendance
+              </h3>
               <span className="text-sm text-slate-500">{format(new Date(selectedDate), "MMMM dd, yyyy")}</span>
             </div>
           </div>
@@ -467,7 +503,10 @@ export default function AdminPanel() {
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
             <div>
-              <h3 className="font-bold text-lg text-slate-800">Staff Directory</h3>
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <Users className="text-brand" size={20} />
+                Staff Directory
+              </h3>
               <p className="text-sm text-slate-500">{employees.length} employees</p>
             </div>
             {selectedEmployees.size > 0 && (
@@ -591,18 +630,27 @@ export default function AdminPanel() {
           {/* Summary */}
           <div className="bg-gradient-to-r from-brand to-blue-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-bold">Monthly Report</h3>
-                <p className="text-white/80 mt-1">{format(parse(selectedMonth, "yyyy-MM", new Date()), "MMMM yyyy")}</p>
-              </div>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/20">
+                  <FileText size={28} />
+                </div>
                 <div>
+                  <h3 className="text-xl font-bold">Monthly Report</h3>
+                  <p className="text-white/80 mt-1">{format(parse(selectedMonth, "yyyy-MM", new Date()), "MMMM yyyy")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-8">
+                <div className="text-center">
                   <p className="text-white/60 text-sm">Total Records</p>
                   <p className="text-3xl font-black">{reports.length}</p>
                 </div>
-                <div>
+                <div className="text-center">
                   <p className="text-white/60 text-sm">Employees</p>
                   <p className="text-3xl font-black">{employees.length}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-white/60 text-sm">Total Hours</p>
+                  <p className="text-3xl font-black">{totalWorkHours.toFixed(1)}</p>
                 </div>
               </div>
             </div>
@@ -678,6 +726,7 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+      {/* Summary Cards Row */}
 
       {/* Modal */}
       <AnimatePresence>
@@ -692,7 +741,8 @@ export default function AdminPanel() {
               <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-lg">
                 <X size={20} className="text-slate-400" />
               </button>
-              <h3 className="text-xl font-bold text-slate-800 mb-6">
+              <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <UserPlus size={24} className="text-brand" />
                 {editingEmployee ? "Edit Employee" : "Add New Employee"}
               </h3>
               <form onSubmit={handleSaveEmployee} className="space-y-4">
@@ -781,26 +831,71 @@ export default function AdminPanel() {
   );
 }
 
-function StatCard({ label, count, icon, color }: { label: string, count: number, icon: React.ReactNode, color: string }) {
-  const colorClasses: Record<string, { bg: string, border: string, text: string }> = {
-    blue: { bg: "bg-blue-50", border: "border-blue-100", text: "text-blue-600" },
-    emerald: { bg: "bg-emerald-50", border: "border-emerald-100", text: "text-emerald-600" },
-    slate: { bg: "bg-slate-50", border: "border-slate-100", text: "text-slate-600" },
-    purple: { bg: "bg-purple-50", border: "border-purple-100", text: "text-purple-600" },
-    amber: { bg: "bg-amber-50", border: "border-amber-100", text: "text-amber-600" },
-    brand: { bg: "bg-brand/10", border: "border-brand/20", text: "text-brand" },
+function StatCard({ label, count, icon, color, trend, suffix }: {
+  label: string;
+  count: number | string;
+  icon: React.ReactNode;
+  color: string;
+  trend?: string;
+  suffix?: string;
+}) {
+  const colorClasses: Record<string, { bg: string; border: string; iconBg: string; iconText: string; text: string }> = {
+    blue: {
+      bg: "bg-blue-50",
+      border: "border-blue-100",
+      iconBg: "bg-blue-100",
+      iconText: "text-blue-600",
+      text: "text-blue-600"
+    },
+    emerald: {
+      bg: "bg-emerald-50",
+      border: "border-emerald-100",
+      iconBg: "bg-emerald-100",
+      iconText: "text-emerald-600",
+      text: "text-emerald-600"
+    },
+    purple: {
+      bg: "bg-purple-50",
+      border: "border-purple-100",
+      iconBg: "bg-purple-100",
+      iconText: "text-purple-600",
+      text: "text-purple-600"
+    },
+    amber: {
+      bg: "bg-amber-50",
+      border: "border-amber-100",
+      iconBg: "bg-amber-100",
+      iconText: "text-amber-600",
+      text: "text-amber-600"
+    },
+    brand: {
+      bg: "bg-brand/10",
+      border: "border-brand/20",
+      iconBg: "bg-brand/20",
+      iconText: "text-brand",
+      text: "text-brand"
+    }
   };
 
   const colors = colorClasses[color] || colorClasses.brand;
 
   return (
-    <div className={`${colors.bg} ${colors.border} border rounded-xl p-4 flex items-center gap-3 transition-transform hover:scale-[1.02]`}>
-      <div className="p-2 rounded-lg bg-white/50">
-        {icon}
+    <div className={`${colors.bg} ${colors.border} border rounded-2xl p-5 transition-all hover:shadow-lg hover:scale-[1.02]`}>
+      <div className="flex items-start justify-between">
+        <div className={`p-3 rounded-xl ${colors.iconBg} border ${colors.border}`}>
+          {icon}
+        </div>
+        {trend && (
+          <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-200">
+            {trend}
+          </span>
+        )}
       </div>
-      <div>
-        <p className="text-2xl font-black font-mono text-slate-800">{count}</p>
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p>
+      <div className="mt-4">
+        <p className="text-3xl font-black font-mono text-slate-800">
+          {count}{suffix && <span className="text-lg font-normal text-slate-500 ml-1">{suffix}</span>}
+        </p>
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mt-1">{label}</p>
       </div>
     </div>
   );
