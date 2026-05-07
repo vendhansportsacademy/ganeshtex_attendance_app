@@ -26,4 +26,5 @@ const AttendanceSchema = new Schema({
   deviceId: { type: String },
 });
 
+// Fix the 'a' to a capital 'A'
 export const Attendance = mongoose.model("Attendance", AttendanceSchema);
