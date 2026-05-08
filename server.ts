@@ -88,27 +88,23 @@ api.post("/attendance/checkin", async (req, res) => {
   const now = new Date();
   const dateStr = format(now, "yyyy-MM-dd");
   try {
-    // Get employee's assigned shift start time
     const employee = await User.findOne({ name: userName });
     const shiftStart = employee?.shiftStart || "09:00";
     
     const existing = await Attendance.findOne({ userName, date: dateStr });
+    const officialTime = parse(shiftStart, "HH:mm", now);
+    
     if (existing) {
-      // Update existing record with new check-in time (latest check-in)
       existing.checkIn = now;
       existing.checkOut = undefined;
       existing.workHours = 0;
-      const officialTime = parse(shiftStart, "HH:mm", now);
-      const lateThreshold = new Date(officialTime.getTime() + 15 * 60000);
-      existing.status = isAfter(now, lateThreshold) ? "Late" : "Present";
-      existing.lateMinutes = isAfter(now, lateThreshold) ? differenceInMinutes(now, officialTime) : 0;
+      existing.status = isAfter(now, officialTime) ? "Late" : "Present";
+      existing.lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
       await existing.save();
       return res.json({ status: "checked-in", attendance: existing });
     } else {
-      const officialTime = parse(shiftStart, "HH:mm", now);
-      const lateThreshold = new Date(officialTime.getTime() + 15 * 60000);
-      const status = isAfter(now, lateThreshold) ? "Late" : "Present";
-      const lateMinutes = isAfter(now, lateThreshold) ? differenceInMinutes(now, officialTime) : 0;
+      const status = isAfter(now, officialTime) ? "Late" : "Present";
+      const lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
       const attendance = new Attendance({ 
         userName, 
         date: dateStr, 
