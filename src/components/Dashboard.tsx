@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [employeeHistory, setEmployeeHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showLateList, setShowLateList] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -231,24 +232,47 @@ export default function Dashboard() {
           </div>
         </div>
 
-         {/* Info Box */}
-         <div className="mx-4 sm:mx-6 mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 flex gap-3 items-start">
-           <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
-             <Bell size={14} />
-           </div>
-           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
-             {lateCount > 0 ? (
-               <>
-                 <AlertCircle size={14} className="mr-2 text-amber-600" />
-                 {lateCount} employee{lateCount === 1 ? '' : 's'} late today!
-               </>
-             ) : (
-               <>
-                 Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1 text-brand" /> icon to view their monthly history.
-               </>
-             )}
-           </p>
-         </div>
+{/* Info Box */}
+          <div className="mx-4 sm:mx-6 mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 flex gap-3 items-start">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
+              <Bell size={14} />
+            </div>
+            <div className="flex-1">
+              {lateCount > 0 ? (
+                <>
+                  <button
+                    onClick={() => setShowLateList(!showLateList)}
+                    className="flex items-center gap-1 text-xs sm:text-sm font-medium text-amber-700 hover:text-amber-800 transition-colors"
+                  >
+                    <AlertCircle size={14} className="text-amber-600" />
+                    {lateCount} employee{lateCount === 1 ? '' : 's'} late today!
+                  </button>
+                  <AnimatePresence>
+                    {showLateList && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-2 pl-5 space-y-1 overflow-hidden"
+                      >
+                        {attendance
+                          .filter(a => a.status === "Late")
+                          .map(a => (
+                            <p key={a.userName} className="text-xs text-slate-600">
+                              • {a.userName} ({format(new Date(a.checkIn), "hh:mm a")})
+                            </p>
+                          ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              ) : (
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
+                  Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1 text-brand" /> icon to view their monthly history.
+                </p>
+              )}
+            </div>
+          </div>
 
         {/* Employee List */}
         <div className="p-4 sm:p-6">

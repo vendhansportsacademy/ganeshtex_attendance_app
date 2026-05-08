@@ -69,7 +69,13 @@ api.put("/employees/:id", async (req, res) => {
 
 api.delete("/employees/:id", async (req, res) => {
   try {
+    const employee = await User.findById(req.params.id);
+    if (!employee) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
+    // Delete employee and all their attendance records
     await User.findByIdAndDelete(req.params.id);
+    await Attendance.deleteMany({ userName: employee.name });
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -78,7 +84,8 @@ api.delete("/employees/:id", async (req, res) => {
 api.get("/attendance/today", async (req, res) => {
   const dateStr = format(new Date(), "yyyy-MM-dd");
   try {
-    const records = await Attendance.find({ date: dateStr });
+    const employeeNames = (await User.find({ role: "employee" }).select("name")).map(e => e.name);
+    const records = await Attendance.find({ date: dateStr, userName: { $in: employeeNames } });
     res.json(records);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -88,8 +95,11 @@ api.post("/attendance/checkin", async (req, res) => {
   const now = new Date();
   const dateStr = format(now, "yyyy-MM-dd");
   try {
-    const employee = await User.findOne({ name: userName });
-    const shiftStart = employee?.shiftStart || "09:00";
+    const employee = await User.findOne({ name: userName, role: "employee" });
+    if (!employee) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
+    const shiftStart = employee.shiftStart || "09:00";
     
     const existing = await Attendance.findOne({ userName, date: dateStr });
     const officialTime = parse(shiftStart, "HH:mm", now);
@@ -123,6 +133,10 @@ api.post("/attendance/checkout", async (req, res) => {
   const now = new Date();
   const dateStr = format(now, "yyyy-MM-dd");
   try {
+    const employee = await User.findOne({ name: userName, role: "employee" });
+    if (!employee) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
     const existing = await Attendance.findOne({ userName, date: dateStr });
     if (existing && !existing.checkOut) {
       existing.checkOut = now;
@@ -141,8 +155,12 @@ api.post("/attendance/checkout", async (req, res) => {
 
 // --- ADMIN REPORTS ---
 api.get("/admin/attendance", async (req, res) => {
+  const { date } = req.query;
   try {
-    const records = await Attendance.find().sort({ checkIn: -1 }).limit(100);
+    const employeeNames = (await User.find({ role: "employee" }).select("name")).map(e => e.name);
+    const query: any = { userName: { $in: employeeNames } };
+    if (date) query.date = date;
+    const records = await Attendance.find(query).sort({ checkIn: -1 }).limit(100);
     res.json(records);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -150,8 +168,10 @@ api.get("/admin/attendance", async (req, res) => {
 api.get("/admin/reports/monthly", async (req, res) => {
   const { month } = req.query;
   try {
+    const employeeNames = (await User.find({ role: "employee" }).select("name")).map(e => e.name);
     const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
     const records = await Attendance.find({
+      userName: { $in: employeeNames },
       checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
     }).sort({ checkIn: -1 });
     res.json(records);
@@ -162,8 +182,10 @@ api.get("/admin/reports/monthly", async (req, res) => {
 api.get("/admin/export/csv", async (req, res) => {
   const { month } = req.query;
   try {
+    const employeeNames = (await User.find({ role: "employee" }).select("name")).map(e => e.name);
     const targetDate = month ? parse(String(month), "yyyy-MM", new Date()) : new Date();
     const records = await Attendance.find({
+      userName: { $in: employeeNames },
       checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
     }).sort({ checkIn: -1 });
 
@@ -221,10 +243,12 @@ async function runAutoCheckout() {
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const now = new Date();
     
-    // Find all records from today that haven't checked out
+    const employeeNames = (await User.find({ role: "employee" }).select("name")).map(e => e.name);
+    
     const unclosedRecords = await Attendance.find({
       date: todayStr,
-      checkOut: { $exists: false }
+      checkOut: { $exists: false },
+      userName: { $in: employeeNames }
     });
     
     if (unclosedRecords.length === 0) {
