@@ -109,6 +109,7 @@ export default function Dashboard() {
   const presentCount = attendance.filter(a => !a.checkOut).length;
   const totalCount = employees.length;
   const progressPercent = totalCount > 0 ? (markedCount / totalCount) * 100 : 0;
+  const lateCount = attendance.filter(a => a.status === "Late").length;
 
   const stats = [
     { label: "Present", count: presentCount, color: "emerald", icon: CheckCircle2 },
@@ -187,14 +188,11 @@ export default function Dashboard() {
         <div className="p-4 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-blue-50/50 to-transparent">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <div className="flex items-center gap-4">
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <p className="text-3xl font-black font-mono text-slate-800 leading-none">
-                  {format(currentTime, "h:mm")}
-                </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                  {format(currentTime, "aaa")}
-                </p>
-              </div>
+           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                 <p className="text-3xl font-black font-mono text-slate-800 leading-none">
+                   {format(currentTime, "hh:mm a")}
+                 </p>
+               </div>
               <div className="hidden sm:block">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Today's Progress</p>
                 <div className="flex items-center gap-2">
@@ -233,15 +231,24 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Info Box */}
-        <div className="mx-4 sm:mx-6 mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 flex gap-3 items-start">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
-            <Bell size={14} />
-          </div>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
-            Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1 text-brand" /> icon to view their monthly history.
-          </p>
-        </div>
+         {/* Info Box */}
+         <div className="mx-4 sm:mx-6 mt-4 bg-blue-50/60 border border-blue-100 rounded-xl p-3 sm:p-4 flex gap-3 items-start">
+           <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0">
+             <Bell size={14} />
+           </div>
+           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-0.5 sm:pt-1">
+             {lateCount > 0 ? (
+               <>
+                 <AlertCircle size={14} className="mr-2 text-amber-600" />
+                 {lateCount} employee{lateCount === 1 ? '' : 's'} late today!
+               </>
+             ) : (
+               <>
+                 Tap any employee to toggle attendance. Click the <History size={12} className="inline mx-1 text-brand" /> icon to view their monthly history.
+               </>
+             )}
+           </p>
+         </div>
 
         {/* Employee List */}
         <div className="p-4 sm:p-6">
@@ -323,7 +330,7 @@ export default function Dashboard() {
                     {isMarked(emp.name) && (
                       <div className="flex gap-3 sm:gap-4 mt-1 sm:mt-2 font-mono text-[10px] sm:text-xs text-slate-500">
                         <div className="truncate">
-                          IN: <span className="text-slate-700 font-medium">{format(new Date(getAttendanceRecord(emp.name)?.checkIn), "hh:mm a")}</span>
+                          IN: <span className="text-slate-700 font-medium">{format(new Date(getAttendanceRecord(emp.name)?.checkIn), "hh:mm aa")}</span>
                         </div>
                         {isCheckedOut(emp.name) && (
                           <div className="truncate">

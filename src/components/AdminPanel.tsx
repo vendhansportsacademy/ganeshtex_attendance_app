@@ -26,7 +26,17 @@ export default function AdminPanel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{id: string, name: string} | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<any>(null);
-  const [formData, setFormData] = useState({ name: "", department: "", empId: "", shiftStart: "09:00", shiftEnd: "17:00" });
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    department: "", 
+    empId: "", 
+    shiftStartHour: "9", 
+    shiftStartMin: "00", 
+    shiftStartPeriod: "AM",
+    shiftEndHour: "5", 
+    shiftEndMin: "00", 
+    shiftEndPeriod: "PM" 
+  });
   const [submitting, setSubmitting] = useState(false);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const { showToast } = useToast();
@@ -68,22 +78,50 @@ export default function AdminPanel() {
     }
   };
 
+const convertTo24Hour = (hour: string, min: string, period: string) => {
+    let h = parseInt(hour);
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return `${h.toString().padStart(2, "0")}:${min}`;
+  };
+
+  const convertFrom24Hour = (time24: string) => {
+    const [hour, min] = time24.split(":");
+    let h = parseInt(hour);
+    const period = h >= 12 ? "PM" : "AM";
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    return { hour: h.toString(), min, period };
+  };
+
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess(null);
     setError(null);
     setSubmitting(true);
     try {
+      const dataToSave = {
+        ...formData,
+        shiftStart: convertTo24Hour(formData.shiftStartHour, formData.shiftStartMin, formData.shiftStartPeriod),
+        shiftEnd: convertTo24Hour(formData.shiftEndHour, formData.shiftEndMin, formData.shiftEndPeriod)
+      };
+      delete dataToSave.shiftStartHour;
+      delete dataToSave.shiftStartMin;
+      delete dataToSave.shiftStartPeriod;
+      delete dataToSave.shiftEndHour;
+      delete dataToSave.shiftEndMin;
+      delete dataToSave.shiftEndPeriod;
+      
       if (editingEmployee) {
-        await api.put(`/employees/${editingEmployee._id}`, formData);
+        await api.put(`/employees/${editingEmployee._id}`, dataToSave);
         showToast("Employee updated successfully", "success");
       } else {
-        await api.post("/employees", formData);
+        await api.post("/employees", dataToSave);
         showToast("Employee added successfully", "success");
       }
       setIsModalOpen(false);
       setEditingEmployee(null);
-      setFormData({ name: "", department: "", empId: "", shiftStart: "09:00", shiftEnd: "17:00" });
+      setFormData({ name: "", department: "", empId: "", shiftStartHour: "9", shiftStartMin: "00", shiftStartPeriod: "AM", shiftEndHour: "5", shiftEndMin: "00", shiftEndPeriod: "PM" });
       await loadData();
     } catch (err: any) {
       setError(err.message || "Operation failed");
@@ -91,6 +129,24 @@ export default function AdminPanel() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openEditModal = (emp: any) => {
+    setEditingEmployee(emp);
+    const startParts = convertFrom24Hour(emp.shiftStart || "09:00");
+    const endParts = convertFrom24Hour(emp.shiftEnd || "17:00");
+    setFormData({ 
+      name: emp.name, 
+      department: emp.department, 
+      empId: emp.empId, 
+      shiftStartHour: startParts.hour, 
+      shiftStartMin: startParts.min, 
+      shiftStartPeriod: startParts.period,
+      shiftEndHour: endParts.hour, 
+      shiftEndMin: endParts.min, 
+      shiftEndPeriod: endParts.period
+    });
+    setIsModalOpen(true);
   };
 
   const handleDeleteEmployee = async () => {
@@ -143,12 +199,6 @@ export default function AdminPanel() {
     } catch (err: any) {
       showToast(err.message || "Failed to export report", "error");
     }
-  };
-
-  const openEditModal = (emp: any) => {
-    setEditingEmployee(emp);
-    setFormData({ name: emp.name, department: emp.department, empId: emp.empId, shiftStart: emp.shiftStart || "09:00", shiftEnd: emp.shiftEnd || "17:00" });
-    setIsModalOpen(true);
   };
 
   const filteredEmployees = employees.filter(e =>
@@ -245,12 +295,12 @@ export default function AdminPanel() {
           )}
 
           {/* Add Employee Button */}
-<button
-             onClick={() => {
-               setEditingEmployee(null);
-               setFormData({ name: "", department: "", empId: "", shiftStart: "09:00", shiftEnd: "17:00" });
-               setIsModalOpen(true);
-             }}
+              <button
+                onClick={() => {
+                  setEditingEmployee(null);
+                  setFormData({ name: "", department: "", empId: "", shiftStartHour: "9", shiftStartMin: "00", shiftStartPeriod: "AM", shiftEndHour: "5", shiftEndMin: "00", shiftEndPeriod: "PM" });
+                  setIsModalOpen(true);
+                }}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all shadow-lg shadow-brand/20"
           >
             <UserPlus size={18} />
@@ -781,24 +831,66 @@ export default function AdminPanel() {
                     placeholder="EMP-001"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift Start</label>
-                    <input
-                      type="time"
-                      value={formData.shiftStart}
-                      onChange={e => setFormData({...formData, shiftStart: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all [color-scheme:light]"
-                    />
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift Start</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.shiftStartHour || "9"}
+                      onChange={e => setFormData({...formData, shiftStartHour: e.target.value})}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      {Array.from({length: 12}, (_, i) => i + 1).map(h => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formData.shiftStartMin || "00"}
+                      onChange={e => setFormData({...formData, shiftStartMin: e.target.value})}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      {["00", "15", "30", "45"].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formData.shiftStartPeriod || "AM"}
+                      onChange={e => setFormData({...formData, shiftStartPeriod: e.target.value})}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift End</label>
-                    <input
-                      type="time"
-                      value={formData.shiftEnd}
-                      onChange={e => setFormData({...formData, shiftEnd: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all [color-scheme:light]"
-                    />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift End</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.shiftEndHour || "5"}
+                      onChange={e => setFormData({...formData, shiftEndHour: e.target.value})}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      {Array.from({length: 12}, (_, i) => i + 1).map(h => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formData.shiftEndMin || "00"}
+                      onChange={e => setFormData({...formData, shiftEndMin: e.target.value})}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      {["00", "15", "30", "45"].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formData.shiftEndPeriod || "PM"}
+                      onChange={e => setFormData({...formData, shiftEndPeriod: e.target.value})}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
                   </div>
                 </div>
                 <button
