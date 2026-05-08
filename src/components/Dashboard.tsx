@@ -282,11 +282,15 @@ export default function Dashboard() {
                       >
                         {attendance
                           .filter(a => a.status === "Late")
-                          .map(a => (
-                            <p key={a.userName} className="text-xs text-slate-600">
-                              • {a.userName} ({format(new Date(a.checkIn), "hh:mm a")})
-                            </p>
-                          ))}
+                          .map(a => {
+                            const firstSession = a.sessions?.[0];
+                            const checkInTime = firstSession ? format(new Date(firstSession.checkIn), "hh:mm a") : "--";
+                            return (
+                              <p key={a.userName} className="text-xs text-slate-600">
+                                • {a.userName} (checked in at {checkInTime})
+                              </p>
+                            );
+                          })}
                       </motion.div>
                     )}
                   </AnimatePresence>
