@@ -6,6 +6,8 @@ const UserSchema = new Schema({
   department: { type: String, default: "General" },
   empId: { type: String, unique: true, sparse: true },
   joiningDate: { type: Date, default: Date.now },
+  shiftStart: { type: String, default: "09:00" },
+  shiftEnd: { type: String, default: "17:00" },
 });
 
 export const User = mongoose.model("User", UserSchema);

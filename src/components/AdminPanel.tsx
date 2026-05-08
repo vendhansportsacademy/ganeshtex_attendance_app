@@ -26,7 +26,7 @@ export default function AdminPanel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{id: string, name: string} | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<any>(null);
-  const [formData, setFormData] = useState({ name: "", department: "", empId: "" });
+  const [formData, setFormData] = useState({ name: "", department: "", empId: "", shiftStart: "09:00", shiftEnd: "17:00" });
   const [submitting, setSubmitting] = useState(false);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const { showToast } = useToast();
@@ -83,7 +83,7 @@ export default function AdminPanel() {
       }
       setIsModalOpen(false);
       setEditingEmployee(null);
-      setFormData({ name: "", department: "", empId: "" });
+      setFormData({ name: "", department: "", empId: "", shiftStart: "09:00", shiftEnd: "17:00" });
       await loadData();
     } catch (err: any) {
       setError(err.message || "Operation failed");
@@ -147,7 +147,7 @@ export default function AdminPanel() {
 
   const openEditModal = (emp: any) => {
     setEditingEmployee(emp);
-    setFormData({ name: emp.name, department: emp.department, empId: emp.empId });
+    setFormData({ name: emp.name, department: emp.department, empId: emp.empId, shiftStart: emp.shiftStart || "09:00", shiftEnd: emp.shiftEnd || "17:00" });
     setIsModalOpen(true);
   };
 
@@ -245,12 +245,12 @@ export default function AdminPanel() {
           )}
 
           {/* Add Employee Button */}
-          <button
-            onClick={() => {
-              setEditingEmployee(null);
-              setFormData({ name: "", department: "", empId: "" });
-              setIsModalOpen(true);
-            }}
+<button
+             onClick={() => {
+               setEditingEmployee(null);
+               setFormData({ name: "", department: "", empId: "", shiftStart: "09:00", shiftEnd: "17:00" });
+               setIsModalOpen(true);
+             }}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all shadow-lg shadow-brand/20"
           >
             <UserPlus size={18} />
@@ -780,6 +780,26 @@ export default function AdminPanel() {
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
                     placeholder="EMP-001"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift Start</label>
+                    <input
+                      type="time"
+                      value={formData.shiftStart}
+                      onChange={e => setFormData({...formData, shiftStart: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all [color-scheme:light]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift End</label>
+                    <input
+                      type="time"
+                      value={formData.shiftEnd}
+                      onChange={e => setFormData({...formData, shiftEnd: e.target.value})}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all [color-scheme:light]"
+                    />
+                  </div>
                 </div>
                 <button
                   type="submit"

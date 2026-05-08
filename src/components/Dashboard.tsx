@@ -46,23 +46,37 @@ export default function Dashboard() {
     }
   };
 
-  const toggleAttendance = async (employee: any) => {
+  const checkIn = async (employee: any) => {
     try {
-      const res = await api.post("/attendance/toggle", { userName: employee.name });
-
-      if (res.status === "present") {
-        setAttendance(prev => [...prev, res.attendance || { userName: employee.name }]);
+      const res = await api.post("/attendance/checkin", { userName: employee.name });
+      if (res.status === "checked-in") {
+        setAttendance(prev => {
+          const existing = prev.find(a => a.userName === employee.name);
+          if (existing) {
+            return prev.map(a => a.userName === employee.name ? res.attendance : a);
+          }
+          return [...prev, res.attendance];
+        });
         showToast(`Checked in for ${employee.name}`, "success");
-      } else if (res.status === "checked-out") {
-        setAttendance(prev => prev.map(a => a.userName === employee.name ? res.attendance : a));
-        showToast(`Checked out successfully`, "success");
-      } else {
-        setAttendance(prev => prev.filter(a => a.userName !== employee.name));
-        showToast(`Attendance removed`, "info");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to update attendance");
-      showToast(err.message || "Failed to update attendance", "error");
+      setError(err.message || "Failed to check in");
+      showToast(err.message || "Failed to check in", "error");
+    }
+  };
+
+  const checkOut = async (employee: any) => {
+    try {
+      const res = await api.post("/attendance/checkout", { userName: employee.name });
+      if (res.status === "checked-out") {
+        setAttendance(prev => prev.map(a => a.userName === employee.name ? res.attendance : a));
+        showToast(`Checked out successfully`, "success");
+      } else if (res.status === "already-checked-out") {
+        showToast(`${employee.name} is already checked out`, "info");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to check out");
+      showToast(err.message || "Failed to check out", "error");
     }
   };
 
@@ -320,33 +334,38 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); viewHistory(emp); }}
-                      className="p-2 rounded-lg text-slate-400 hover:text-brand hover:bg-brand/10 transition-all"
-                      title="View History"
-                    >
-                      <History size={18} />
-                    </button>
-                    <div
-                      onClick={() => toggleAttendance(emp)}
-                      className={cn(
-                        "w-10 h-10 sm:w-11 sm:h-11 rounded-xl border-2 flex items-center justify-center transition-all cursor-pointer",
-                        isMarked(emp.name)
-                          ? isCheckedOut(emp.name)
-                            ? "bg-slate-100 border-slate-200 text-slate-400"
-                            : "bg-brand border-brand text-white shadow-lg shadow-brand/20"
-                          : "border-slate-300 group-hover:border-brand hover:bg-brand/5"
-                      )}
-                    >
-                      {isMarked(emp.name) && (
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                          {isCheckedOut(emp.name) ? <Clock size={18} /> : <CheckCircle2 size={20} />}
-                        </motion.div>
-                      )}
-                    </div>
-                  </div>
+{/* Actions */}
+                   <div className="flex items-center gap-2">
+                     <button
+                       onClick={(e) => { e.stopPropagation(); viewHistory(emp); }}
+                       className="p-2 rounded-lg text-slate-400 hover:text-brand hover:bg-brand/10 transition-all"
+                       title="View History"
+                     >
+                       <History size={18} />
+                     </button>
+                     {isCheckedOut(emp.name) ? (
+                       <button
+                         onClick={() => checkIn(emp)}
+                         className="px-3 py-2 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all shadow-md"
+                       >
+                         Check In
+                       </button>
+                     ) : isMarked(emp.name) ? (
+                       <button
+                         onClick={() => checkOut(emp)}
+                         className="px-3 py-2 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all shadow-md"
+                       >
+                         Check Out
+                       </button>
+                     ) : (
+                       <button
+                         onClick={() => checkIn(emp)}
+                         className="px-3 py-2 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all shadow-md"
+                       >
+                         Check In
+                       </button>
+                     )}
+                   </div>
                 </motion.div>
               ))}
             </div>

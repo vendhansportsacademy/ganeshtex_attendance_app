@@ -83,28 +83,26 @@ api.get("/attendance/today", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-api.post("/attendance/toggle", async (req, res) => {
+api.post("/attendance/checkin", async (req, res) => {
   const { userName } = req.body;
   const now = new Date();
   const dateStr = format(now, "yyyy-MM-dd");
   try {
     const existing = await Attendance.findOne({ userName, date: dateStr });
     if (existing) {
-      if (!existing.checkOut) {
-        existing.checkOut = now;
-        const diff = differenceInMinutes(now, existing.checkIn);
-        existing.workHours = Number((diff / 60).toFixed(2));
-        existing.status = "Present"; // Ensure status is Present
-        await existing.save();
-        return res.json({ status: "checked-out", attendance: existing });
-      } else {
-        // Already checked out - don't delete, just return current status
-        return res.json({ status: "already-checked-out", attendance: existing });
-      }
+      // Update existing record with new check-in time (latest check-in)
+      existing.checkIn = now;
+      existing.checkOut = undefined;
+      existing.workHours = 0;
+      const officialTime = parse("09:15", "HH:mm", now);
+      existing.status = isAfter(now, officialTime) ? "Late" : "Present";
+      existing.lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
+      await existing.save();
+      return res.json({ status: "checked-in", attendance: existing });
     } else {
       const officialTime = parse("09:15", "HH:mm", now);
-      let status: "Present" | "Late" = isAfter(now, officialTime) ? "Late" : "Present";
-      let lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
+      const status = isAfter(now, officialTime) ? "Late" : "Present";
+      const lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
       const attendance = new Attendance({ 
         userName, 
         date: dateStr, 
@@ -113,7 +111,28 @@ api.post("/attendance/toggle", async (req, res) => {
         lateMinutes 
       });
       await attendance.save();
-      return res.json({ status: "present", attendance });
+      return res.json({ status: "checked-in", attendance });
+    }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+api.post("/attendance/checkout", async (req, res) => {
+  const { userName } = req.body;
+  const now = new Date();
+  const dateStr = format(now, "yyyy-MM-dd");
+  try {
+    const existing = await Attendance.findOne({ userName, date: dateStr });
+    if (existing && !existing.checkOut) {
+      existing.checkOut = now;
+      const diff = differenceInMinutes(now, existing.checkIn);
+      existing.workHours = Number((diff / 60).toFixed(2));
+      existing.status = "Present";
+      await existing.save();
+      return res.json({ status: "checked-out", attendance: existing });
+    } else if (existing && existing.checkOut) {
+      return res.json({ status: "already-checked-out", attendance: existing });
+    } else {
+      return res.status(404).json({ error: "No check-in record found for today" });
     }
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
