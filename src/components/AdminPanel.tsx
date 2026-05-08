@@ -207,11 +207,11 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
     e.empId?.toLowerCase().includes(employeeSearch.toLowerCase())
   );
 
-  // Compute stats
-  const todayPresent = attendance.filter(a => a.date === format(new Date(), "yyyy-MM-dd") && !a.checkOut).length;
-  const departments = Array.from(new Set(employees.map(e => e.department)));
-  const monthlyRecords = reports.length;
-  const totalWorkHours = reports.reduce((sum, r: any) => sum + (r.workHours || 0), 0);
+   // Compute stats
+   const todayPresent = attendance.filter(a => a.date === format(new Date(), "yyyy-MM-dd") && a.sessions?.length > 0).length;
+   const departments = Array.from(new Set(employees.map(e => e.department)));
+   const monthlyRecords = reports.length;
+   const totalWorkHours = reports.reduce((sum, r: any) => sum + (r.totalHours || 0), 0);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -368,20 +368,21 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
 
           {/* Quick Info Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200 rounded-2xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-white rounded-xl shadow-sm border border-blue-100">
-                  <Activity className="text-blue-600" size={24} />
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200 rounded-2xl p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-white rounded-xl shadow-sm border border-blue-100">
+                      <Activity className="text-blue-600" size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-blue-900 uppercase tracking-wider mb-1">Activity Overview</h3>
+                      <p className="text-slate-700">
+                        {attendance.length} employees have marked attendance today.
+                        {employees.length > attendance.length && ` ${employees.length - attendance.length} are absent.`}
+                        {" "}Total: {attendance.reduce((sum, a) => sum + (a.sessionCount || 0), 0)} sessions, {attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0).toFixed(1)} hours.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-blue-900 uppercase tracking-wider mb-1">Activity Overview</h3>
-                  <p className="text-slate-700">
-                    {attendance.length} employees have marked attendance today.
-                    {employees.length > attendance.length && ` ${employees.length - attendance.length} are absent.`}
-                  </p>
-                </div>
-              </div>
-            </div>
 
             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200 rounded-2xl p-6">
               <div className="flex items-start gap-4">
@@ -463,6 +464,10 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
           <div className="lg:hidden divide-y divide-slate-100">
             {filteredEmployees.map((emp, i) => {
               const record = attendance.find(a => a.userName === emp.name);
+              const isPresent = record && (record.sessions || []).length > 0;
+              const sessions = record?.sessions || [];
+              const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+              const isCheckedOut = lastSession?.checkOut;
               return (
                 <div key={emp._id || i} className="p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -478,20 +483,31 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                     <span
                       className={cn(
                         "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase",
-                        record?.checkOut
+                        isCheckedOut
                           ? "bg-slate-100 text-slate-500"
-                          : record
+                          : isPresent
                             ? "bg-emerald-100 text-emerald-600"
                             : "bg-rose-100 text-rose-600"
                       )}
                     >
-                      {record?.checkOut ? "Logged Out" : record ? "Present" : "Absent"}
+                      {isCheckedOut ? "Logged Out" : isPresent ? "Present" : "Absent"}
                     </span>
                   </div>
-                  {record && (
-                    <div className="flex gap-4 text-sm font-mono text-slate-600">
-                      <span>In: {format(new Date(record.checkIn), "hh:mm a")}</span>
-                      <span>Out: {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "--:--"}</span>
+                  {isPresent && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-3 text-xs font-mono text-slate-600">
+                        {sessions.map((session: any, idx: number) => (
+                          <span key={idx}>
+                            {format(new Date(session.checkIn), "hh:mm a")} - {session.checkOut ? format(new Date(session.checkOut), "hh:mm a") : "Open"}
+                            {session.duration > 0 && ` (${session.duration.toFixed(1)}h)`}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-3 text-[10px] text-slate-400">
+                        <span>{record.sessionCount || 0} session{(record.sessionCount || 0) !== 1 ? 's' : ''}</span>
+                        <span>•</span>
+                        <span>{(record.totalHours || 0).toFixed(1)} hrs total</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -506,14 +522,18 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                 <tr className="border-b border-slate-100">
                   <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Employee</th>
                   <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Department</th>
-                  <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Check In</th>
-                  <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Check Out</th>
+                  <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Sessions</th>
+                  <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Total Hours</th>
                   <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredEmployees.map((emp, i) => {
                   const record = attendance.find(a => a.userName === emp.name);
+                  const isPresent = record && (record.sessions || []).length > 0;
+                  const sessions = record?.sessions || [];
+                  const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+                  const isCheckedOut = lastSession?.checkOut;
                   return (
                     <tr key={emp._id || i} className="group hover:bg-blue-50/30 border-b border-slate-100 transition-colors">
                       <td className="p-4">
@@ -525,30 +545,45 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                         </div>
                       </td>
                       <td className="p-4 font-medium text-sm text-slate-600">{emp.department}</td>
-                      <td className="p-4 font-mono text-sm text-brand">{record?.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "--:--"}</td>
-                      <td className="p-4 font-mono text-sm text-slate-600">{record?.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "--:--"}</td>
+                      <td className="p-4">
+                        {isPresent ? (
+                          <div className="flex flex-col gap-1">
+                            {sessions.map((session: any, si: number) => (
+                              <span key={si} className="font-mono text-xs text-slate-600">
+                                {format(new Date(session.checkIn), "hh:mm a")} - {session.checkOut ? format(new Date(session.checkOut), "hh:mm a") : "Open"}
+                                {session.duration > 0 && ` (${session.duration.toFixed(1)}h)`}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-400">--</span>
+                        )}
+                      </td>
+                      <td className="p-4 font-mono text-sm text-slate-600">
+                        {isPresent ? `${(record.totalHours || 0).toFixed(1)} hrs` : "--"}
+                      </td>
                       <td className="p-4">
                         <span
                           className={cn(
                             "px-3 py-1 rounded-lg text-[10px] font-black uppercase",
-                            record?.checkOut
+                            isCheckedOut
                               ? "bg-slate-100 text-slate-500"
-                              : record
+                              : isPresent
                                 ? "bg-emerald-100 text-emerald-600"
                                 : "bg-rose-100 text-rose-600"
                           )}
                         >
-                          {record?.checkOut ? "Logged Out" : record ? "Present" : "Absent"}
+                          {isCheckedOut ? "Logged Out" : isPresent ? "Present" : "Absent"}
                         </span>
                       </td>
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+               </tbody>
+             </table>
+           </div>
+         </div>
+       )}
 
       {/* Employees View */}
       {activeView === "employees" && (
@@ -740,9 +775,9 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                         <thead className="bg-slate-50">
                           <tr className="border-b border-slate-100">
                             <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Date</th>
-                            <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Check In</th>
-                            <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Check Out</th>
-                            <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Hours</th>
+                            <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Sessions</th>
+                            <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Total Hours</th>
+                            <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Sessions</th>
                             <th className="p-4 text-[10px] uppercase tracking-widest font-black text-slate-400">Status</th>
                           </tr>
                         </thead>
@@ -750,13 +785,24 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                           {empRecords.map((rec: any, ri: number) => (
                             <tr key={ri} className="border-b border-slate-100 last:border-0 hover:bg-blue-50/30 transition-colors">
                               <td className="p-4 font-mono text-sm text-slate-600">{rec.date}</td>
-                              <td className="p-4 font-mono text-sm text-brand">{rec.checkIn ? format(new Date(rec.checkIn), "hh:mm a") : "--"}</td>
-                              <td className="p-4 font-mono text-sm text-brand">{rec.checkOut ? format(new Date(rec.checkOut), "hh:mm a") : "--"}</td>
-                              <td className="p-4 font-mono text-sm text-slate-600">{rec.workHours?.toFixed(1) || "0.0"} hrs</td>
+                              <td className="p-4">
+                                <div className="flex flex-col gap-1">
+                                  {rec.sessions?.map((session: any, si: number) => (
+                                    <span key={si} className="font-mono text-xs text-slate-600">
+                                      {format(new Date(session.checkIn), "hh:mm a")} - {session.checkOut ? format(new Date(session.checkOut), "hh:mm a") : "Open"}
+                                      {session.duration > 0 && ` (${session.duration.toFixed(1)}h)`}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="p-4 font-mono text-sm text-slate-600">{rec.totalHours?.toFixed(1) || "0.0"} hrs</td>
+                              <td className="p-4 font-mono text-sm text-slate-600">{rec.sessionCount}</td>
                               <td className="p-4">
                                 <span className={cn(
                                   "px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter",
-                                  rec.status === "Present" ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                                  (rec.status === "Present" || rec.status === "Checked In")
+                                    ? "bg-emerald-100 text-emerald-600"
+                                    : "bg-amber-100 text-amber-600"
                                 )}>
                                   {rec.status}
                                 </span>

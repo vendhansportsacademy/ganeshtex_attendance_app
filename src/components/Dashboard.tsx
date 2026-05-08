@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Clock, CheckCircle2, AlertCircle, Search, X, History, Calendar,
-  Building2, UserCheck, Users, Bell
+  Building2, UserCheck, Users, Bell, Activity
 } from "lucide-react";
 import { api } from "../lib/api";
 import { format } from "date-fns";
@@ -98,26 +98,48 @@ export default function Dashboard() {
   };
 
   const getAttendanceRecord = (name: string) => attendance.find((a) => a.userName === name);
+  
+  // Check if employee has ANY attendance record today
   const isMarked = (name: string) => attendance.some((a) => a.userName === name);
-  const isCheckedOut = (name: string) => attendance.some((a) => a.userName === name && a.checkOut);
+  
+  // Check if the latest session has checkOut (fully checked out - no open sessions)
+  const isCheckedOut = (name: string) => {
+    const record = attendance.find(a => a.userName === name);
+    if (!record) return true;
+    const sessions = record.sessions || [];
+    if (sessions.length === 0) return true;
+    const lastSession = sessions[sessions.length - 1];
+    return !!lastSession.checkOut;
+  };
+
+  const markedCount = attendance.length;  // employees with any attendance today
+  const openSessionCount = attendance.filter(a => {
+    if (!a.sessions || a.sessions.length === 0) return false;
+    const last = a.sessions[a.sessions.length - 1];
+    return !last.checkOut;
+  }).length;
+  const presentCount = openSessionCount;  // employees with open session (still working)
+  const totalCount = employees.length;
+  const progressPercent = totalCount > 0 ? (markedCount / totalCount) * 100 : 0;
+  // Show employees with at least one late session (first session late)
+  const lateCount = attendance.filter(a => a.status === "Late").length;
+  
+   const totalSessionsToday = attendance.reduce((sum, a) => sum + (a.sessionCount || 0), 0);
+   const totalHoursToday = attendance.reduce((sum, a) => sum + (a.totalHours || 0), 0);
+
+   const stats = [
+    { label: "Present Now", count: presentCount, color: "emerald", icon: CheckCircle2 },
+    { label: "Checked Out", count: markedCount - presentCount, color: "blue", icon: Clock },
+    { label: "Sessions", count: totalSessionsToday, color: "purple", icon: Activity },
+    { label: "Total Hours", count: totalHoursToday.toFixed(1), suffix: "hrs", color: "amber", icon: Clock },
+    { label: "Absent", count: totalCount - markedCount, color: "slate", icon: AlertCircle },
+    { label: "Total Emp", count: totalCount, color: "brand", icon: Users },
+  ];
 
   const filteredEmployees = employees.filter(emp =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.department.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const markedCount = attendance.length;
-  const presentCount = attendance.filter(a => !a.checkOut).length;
-  const totalCount = employees.length;
-  const progressPercent = totalCount > 0 ? (markedCount / totalCount) * 100 : 0;
-  const lateCount = attendance.filter(a => a.status === "Late").length;
-
-  const stats = [
-    { label: "Present", count: presentCount, color: "emerald", icon: CheckCircle2 },
-    { label: "Checked Out", count: markedCount - presentCount, color: "blue", icon: Clock },
-    { label: "Absent", count: totalCount - markedCount, color: "slate", icon: AlertCircle },
-    { label: "Total", count: totalCount, color: "brand", icon: Users },
-  ];
 
   return (
     <div className="p-4 sm:p-6 md:p-8 lg:p-12 max-w-5xl mx-auto">
@@ -174,10 +196,13 @@ export default function Dashboard() {
               <div className={cn("p-2 rounded-lg bg-white/80", textColorClasses[stat.color as keyof typeof textColorClasses])}>
                 <Icon size={22} />
               </div>
-              <div>
-                <p className="text-2xl font-black font-mono text-slate-800">{stat.count}</p>
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{stat.label}</p>
-              </div>
+               <div>
+                 <p className="text-2xl font-black font-mono text-slate-800">
+                   {stat.count}
+                   {stat.suffix && <span className="text-lg font-normal text-slate-500 ml-1">{stat.suffix}</span>}
+                 </p>
+                 <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{stat.label}</p>
+               </div>
             </div>
           );
         })}
@@ -351,18 +376,53 @@ export default function Dashboard() {
                         </span>
                       )}
                     </div>
-                    {isMarked(emp.name) && (
-                      <div className="flex gap-3 sm:gap-4 mt-1 sm:mt-2 font-mono text-[10px] sm:text-xs text-slate-500">
-                        <div className="truncate">
-                          IN: <span className="text-slate-700 font-medium">{format(new Date(getAttendanceRecord(emp.name)?.checkIn), "hh:mm aa")}</span>
-                        </div>
-                        {isCheckedOut(emp.name) && (
-                          <div className="truncate">
-                            OUT: <span className="text-slate-700 font-medium">{format(new Date(getAttendanceRecord(emp.name)?.checkOut), "hh:mm a")}</span>
+                      {isMarked(emp.name) && (
+                        <div className="flex flex-col gap-1 mt-1 sm:mt-2">
+                          {/* Sessions timeline */}
+                          <div className="flex flex-wrap gap-2 sm:gap-3 font-mono text-[10px] sm:text-xs text-slate-500">
+                            {(() => {
+                              const record = getAttendanceRecord(emp.name);
+                              if (!record) return null;
+                              const sessions = record.sessions || [];
+                              return sessions.map((session: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-1">
+                                  <span className="text-slate-700 font-medium">
+                                    {format(new Date(session.checkIn), "hh:mm aa")}
+                                  </span>
+                                  <span className="text-slate-400">→</span>
+                                  <span className={session.checkOut ? "text-slate-700" : "text-amber-600 font-semibold"}>
+                                    {session.checkOut 
+                                      ? format(new Date(session.checkOut), "hh:mm aa")
+                                      : "Now"
+                                    }
+                                  </span>
+                                  {session.duration > 0 && (
+                                    <span className="text-slate-400">({session.duration.toFixed(1)}h)</span>
+                                  )}
+                                </div>
+                              ));
+                            })()}
                           </div>
-                        )}
-                      </div>
-                    )}
+                          
+                          {/* Daily summary stats */}
+                          {(() => {
+                            const record = getAttendanceRecord(emp.name);
+                            if (!record) return null;
+                            return (
+                              <div className="flex items-center gap-3 text-[10px] sm:text-xs text-slate-400">
+                                <span className="flex items-center gap-1">
+                                  <Calendar size={10} />
+                                  {record.sessionCount || 0} session{(record.sessionCount || 0) !== 1 ? 's' : ''}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock size={10} />
+                                  {(record.totalHours || 0).toFixed(1)} hrs total
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                   </div>
 
 {/* Actions */}
@@ -446,76 +506,98 @@ export default function Dashboard() {
                       <div key={i} className="animate-pulse h-16 bg-slate-50 rounded-xl" />
                     ))}
                   </div>
-                ) : employeeHistory.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <Calendar className="mx-auto mb-3" size={40} />
-                    <p>No attendance records this month</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {employeeHistory.map((record: any) => (
-                      <div
-                        key={record._id}
-                        className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 transition-all"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
-                            <Calendar size={18} className="text-blue-500" />
-                          </div>
-                          <div>
-                            <p className="font-mono text-sm font-medium text-slate-700">{record.date}</p>
-                            <p className="text-xs text-slate-400">
-                              {record.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "--"} -{" "}
-                              {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "--"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={cn(
-                              "px-3 py-1 rounded-lg text-[10px] font-black uppercase",
-                              record.status === "Present" || record.status === "Checked In"
-                                ? "bg-emerald-100 text-emerald-600"
-                                : "bg-amber-100 text-amber-600"
-                            )}
-                          >
-                            {record.status}
+               ) : employeeHistory.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <Calendar className="mx-auto mb-3" size={40} />
+                  <p>No attendance records this month</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {employeeHistory.map((record: any, idx: number) => (
+                    <div
+                      key={record._id || idx}
+                      className="rounded-xl border border-slate-100 overflow-hidden"
+                    >
+                      {/* Date header */}
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-blue-50/30">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={16} className="text-brand" />
+                          <span className="font-mono text-sm font-medium text-slate-700">{record.date}</span>
+                          <span className="text-xs text-slate-500">
+                            ({record.sessionCount} session{record.sessionCount !== 1 ? 's' : ''}, {record.totalHours?.toFixed(1) || '0.0'} hrs)
                           </span>
-                          {record.workHours && (
-                            <p className="text-xs text-slate-500 mt-1 font-mono">{record.workHours} hrs</p>
-                          )}
                         </div>
+                        <span
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-tighter",
+                            record.status === "Present" || record.status === "Checked In"
+                              ? "bg-emerald-100 text-emerald-600"
+                              : "bg-amber-100 text-amber-600"
+                          )}
+                        >
+                          {record.status}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {employeeHistory.length > 0 && (
-                <div className="p-6 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} className="text-brand" />
-                      <div>
-                        <p className="text-slate-500">Total Days Present</p>
-                        <p className="text-2xl font-black text-brand">{employeeHistory.length}</p>
+                      {/* Sessions list */}
+                      <div className="p-3 space-y-2">
+                        {record.sessions?.map((session: any, si: number) => (
+                          <div key={si} className="flex items-center justify-between text-sm pl-4">
+                            <div className="flex items-center gap-3 font-mono text-slate-600">
+                              <span>{format(new Date(session.checkIn), "hh:mm a")}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className={session.checkOut ? "text-slate-600" : "text-amber-600 font-semibold"}>
+                                {session.checkOut ? format(new Date(session.checkOut), "hh:mm a") : "Still open"}
+                              </span>
+                            </div>
+                            {session.duration > 0 && (
+                              <span className="text-xs text-slate-500">{session.duration.toFixed(1)}h</span>
+                            )}
+                          </div>
+                        ))}
+                        {(!record.sessions || record.sessions.length === 0) && (
+                          <p className="text-xs text-slate-400 italic">No session data</p>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-emerald-600" />
-                      <div>
-                        <p className="text-slate-500">Avg Hours</p>
-                        <p className="text-2xl font-black text-slate-700">
-                          {employeeHistory.length > 0
-                            ? (employeeHistory.reduce((sum: number, r: any) => sum + (r.workHours || 0), 0) / employeeHistory.length).toFixed(1)
-                            : "0.0"}{" "}
-                          hrs
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               )}
+              </div>
+
+               {employeeHistory.length > 0 && (
+                 <div className="p-6 border-t border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30">
+                   <div className="flex items-center justify-between text-sm">
+                     <div className="flex items-center gap-2">
+                       <Calendar size={16} className="text-brand" />
+                       <div>
+                         <p className="text-slate-500">Total Days Present</p>
+                         <p className="text-2xl font-black text-brand">{employeeHistory.length}</p>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <Clock size={16} className="text-emerald-600" />
+                       <div>
+                         <p className="text-slate-500">Avg Hours/Day</p>
+                         <p className="text-2xl font-black text-slate-700">
+                           {employeeHistory.length > 0
+                             ? (employeeHistory.reduce((sum: number, r: any) => sum + (r.totalHours || 0), 0) / employeeHistory.length).toFixed(1)
+                             : "0.0"}{" "}
+                           hrs
+                         </p>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <Activity size={16} className="text-blue-600" />
+                       <div>
+                         <p className="text-slate-500">Total Sessions</p>
+                         <p className="text-2xl font-black text-slate-700">
+                           {employeeHistory.reduce((sum: number, r: any) => sum + (r.sessionCount || 0), 0)}
+                         </p>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+               )}
             </motion.div>
           </div>
         )}

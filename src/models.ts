@@ -15,11 +15,26 @@ export const User = mongoose.model("User", UserSchema);
 const AttendanceSchema = new Schema({
   userName: { type: String, required: true },
   date: { type: String, required: true }, // YYYY-MM-DD
-  checkIn: { type: Date, required: true },
-  checkOut: { type: Date },
+  
+  // Multiple sessions array - each session tracks a check-in/check-out pair
+  sessions: {
+    type: [{
+      checkIn: { type: Date, required: true },
+      checkOut: { type: Date },
+      duration: { type: Number, default: 0 }, // hours
+    }],
+    default: []
+  },
+  
+  // Computed daily summary fields
+  firstCheckIn: { type: Date },
+  lastCheckOut: { type: Date },
+  totalHours: { type: Number, default: 0 },
+  sessionCount: { type: Number, default: 0 },
+  
   status: { type: String, enum: ["Present", "Late", "Half Day", "Absent", "Short Shift"], default: "Present" },
-  workHours: { type: Number, default: 0 },
   lateMinutes: { type: Number, default: 0 },
+  
   location: {
     lat: Number,
     lng: Number,
@@ -28,5 +43,5 @@ const AttendanceSchema = new Schema({
   deviceId: { type: String },
 });
 
-// Fix the 'a' to a capital 'A'
+// Export the Attendance model
 export const Attendance = mongoose.model("Attendance", AttendanceSchema);

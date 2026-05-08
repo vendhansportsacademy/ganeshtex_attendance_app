@@ -90,6 +90,40 @@ api.get("/attendance/today", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+  // Helper function to compute daily summary from sessions
+  function computeDailySummary(sessions: any[], shiftStart: string = "09:00") {
+    if (sessions.length === 0) {
+      return { firstCheckIn: undefined, lastCheckOut: undefined, totalHours: 0, sessionCount: 0, status: "Absent" as const, lateMinutes: 0 };
+    }
+    
+    const firstCheckIn = sessions[0].checkIn;
+    const lastSession = sessions[sessions.length - 1];
+    const lastCheckOut = lastSession.checkOut;
+    const totalHours = sessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+    const sessionCount = sessions.length;
+    
+    // Determine status based on first check-in vs shift start
+    const now = new Date();
+    const shiftDate = firstCheckIn ? new Date(firstCheckIn) : now;
+    const officialTime = new Date(shiftDate);
+    const [hours, minutes] = shiftStart.split(":").map(Number);
+    officialTime.setHours(hours, minutes, 0, 0);
+    
+    let status: "Present" | "Late" | "Half Day" | "Absent" | "Short Shift" = "Present";
+    let lateMinutes = 0;
+    
+    if (firstCheckIn && isAfter(firstCheckIn, officialTime)) {
+      status = "Late";
+      lateMinutes = differenceInMinutes(firstCheckIn, officialTime);
+    } else if (totalHours < 4) {
+      status = "Half Day";
+    } else if (totalHours < 6) {
+      status = "Short Shift";
+    }
+    
+    return { firstCheckIn, lastCheckOut, totalHours, sessionCount, status, lateMinutes };
+  }
+
 api.post("/attendance/checkin", async (req, res) => {
   const { userName } = req.body;
   const now = new Date();
@@ -101,30 +135,42 @@ api.post("/attendance/checkin", async (req, res) => {
     }
     const shiftStart = employee.shiftStart || "09:00";
     
-    const existing = await Attendance.findOne({ userName, date: dateStr });
-    const officialTime = parse(shiftStart, "HH:mm", now);
+    // Find or create today's attendance record
+    let attendance = await Attendance.findOne({ userName, date: dateStr });
     
-    if (existing) {
-      existing.checkIn = now;
-      existing.checkOut = undefined;
-      existing.workHours = 0;
-      existing.status = isAfter(now, officialTime) ? "Late" : "Present";
-      existing.lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
-      await existing.save();
-      return res.json({ status: "checked-in", attendance: existing });
-    } else {
-      const status = isAfter(now, officialTime) ? "Late" : "Present";
-      const lateMinutes = isAfter(now, officialTime) ? differenceInMinutes(now, officialTime) : 0;
-      const attendance = new Attendance({ 
-        userName, 
-        date: dateStr, 
-        checkIn: now, 
-        status, 
-        lateMinutes 
+    if (!attendance) {
+      // Create new daily record with first session
+      attendance = new Attendance({
+        userName,
+        date: dateStr,
+        sessions: [{ checkIn: now, checkOut: undefined, duration: 0 }],
       });
-      await attendance.save();
-      return res.json({ status: "checked-in", attendance });
+    } else {
+      // Auto-close any currently open session before starting a new one
+      const sessions = attendance.sessions;
+      for (let i = sessions.length - 1; i >= 0; i--) {
+        if (!sessions[i].checkOut) {
+          sessions[i].checkOut = now;
+          const diff = differenceInMinutes(now, sessions[i].checkIn);
+          sessions[i].duration = Number((diff / 60).toFixed(2));
+          break; // Close only the most recent open session
+        }
+      }
+      // Start a new session
+      attendance.sessions.push({ checkIn: now, checkOut: undefined, duration: 0 });
     }
+    
+    // Recompute daily summary from all sessions
+    const summary = computeDailySummary(attendance.sessions, shiftStart);
+    attendance.firstCheckIn = summary.firstCheckIn;
+    attendance.lastCheckOut = summary.lastCheckOut;
+    attendance.totalHours = summary.totalHours;
+    attendance.sessionCount = summary.sessionCount;
+    attendance.status = summary.status;
+    attendance.lateMinutes = summary.lateMinutes;
+    
+    await attendance.save();
+    return res.json({ status: "checked-in", attendance });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -137,19 +183,39 @@ api.post("/attendance/checkout", async (req, res) => {
     if (!employee) {
       return res.status(404).json({ error: "Employee not found" });
     }
-    const existing = await Attendance.findOne({ userName, date: dateStr });
-    if (existing && !existing.checkOut) {
-      existing.checkOut = now;
-      const diff = differenceInMinutes(now, existing.checkIn);
-      existing.workHours = Number((diff / 60).toFixed(2));
-      existing.status = "Present";
-      await existing.save();
-      return res.json({ status: "checked-out", attendance: existing });
-    } else if (existing && existing.checkOut) {
-      return res.json({ status: "already-checked-out", attendance: existing });
-    } else {
+    const shiftStart = employee.shiftStart || "09:00";
+    
+    const attendance = await Attendance.findOne({ userName, date: dateStr });
+    if (!attendance) {
       return res.status(404).json({ error: "No check-in record found for today" });
     }
+    
+    // Find the latest open session (no checkOut)
+    const sessions = attendance.sessions;
+    const openSessionIndex = sessions.findIndex(s => !s.checkOut);
+    
+    if (openSessionIndex === -1) {
+      // All sessions are closed
+      return res.json({ status: "already-checked-out", attendance });
+    }
+    
+    // Close the open session
+    const session = sessions[openSessionIndex];
+    session.checkOut = now;
+    const diffMinutes = differenceInMinutes(now, session.checkIn);
+    session.duration = Number((diffMinutes / 60).toFixed(2));
+    
+    // Recompute daily summary
+    const summary = computeDailySummary(attendance.sessions, shiftStart);
+    attendance.firstCheckIn = summary.firstCheckIn;
+    attendance.lastCheckOut = summary.lastCheckOut;
+    attendance.totalHours = summary.totalHours;
+    attendance.sessionCount = summary.sessionCount;
+    attendance.status = summary.status;
+    attendance.lateMinutes = summary.lateMinutes;
+    
+    await attendance.save();
+    return res.json({ status: "checked-out", attendance });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -189,15 +255,15 @@ api.get("/admin/export/csv", async (req, res) => {
       checkIn: { $gte: startOfMonth(targetDate), $lte: endOfMonth(targetDate) }
     }).sort({ checkIn: -1 });
 
-    const headers = ["Employee", "Date", "Check In", "Check Out", "Status", "Work Hours", "Late Minutes"];
+    const headers = ["Employee", "Date", "First Check In", "Last Check Out", "Total Hours", "Sessions", "Status"];
     const rows = records.map(r => [
       r.userName,
       r.date,
-      r.checkIn ? format(new Date(r.checkIn), "hh:mm a") : "",
-      r.checkOut ? format(new Date(r.checkOut), "hh:mm a") : "",
+      r.firstCheckIn ? format(new Date(r.firstCheckIn), "hh:mm a") : "--",
+      r.lastCheckOut ? format(new Date(r.lastCheckOut), "hh:mm a") : "--",
+      (r.totalHours || 0).toFixed(2),
+      r.sessionCount?.toString() || "0",
       r.status,
-      r.workHours?.toString() || "0",
-      r.lateMinutes?.toString() || "0",
     ]);
 
     const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
@@ -245,30 +311,43 @@ async function runAutoCheckout() {
     
     const employeeNames = (await User.find({ role: "employee" }).select("name")).map(e => e.name);
     
-    const unclosedRecords = await Attendance.find({
+    // Find all attendance records with at least one open session
+    const records = await Attendance.find({
       date: todayStr,
-      checkOut: { $exists: false },
       userName: { $in: employeeNames }
     });
     
-    if (unclosedRecords.length === 0) {
+    let updatedCount = 0;
+    
+    for (const record of records) {
+      const openSession = record.sessions.find(s => !s.checkOut);
+      if (openSession) {
+        openSession.checkOut = now;
+        const diffMinutes = differenceInMinutes(now, openSession.checkIn);
+        openSession.duration = Number((diffMinutes / 60).toFixed(2));
+        
+        // Recompute summary
+        const employee = await User.findOne({ name: record.userName, role: "employee" });
+        const shiftStart = employee?.shiftStart || "09:00";
+        const summary = computeDailySummary(record.sessions, shiftStart);
+        record.firstCheckIn = summary.firstCheckIn;
+        record.lastCheckOut = summary.lastCheckOut;
+        record.totalHours = summary.totalHours;
+        record.sessionCount = summary.sessionCount;
+        record.status = summary.status;
+        record.lateMinutes = summary.lateMinutes;
+        
+        await record.save();
+        updatedCount++;
+        console.log(`  ✓ Auto-checked out: ${record.userName} (session: ${format(new Date(openSession.checkIn), "hh:mm a")} → ${format(now, "hh:mm a")})`);
+      }
+    }
+    
+    if (updatedCount === 0) {
       console.log("✅ No pending checkouts found.");
-      return;
+    } else {
+      console.log(`✅ Auto-checkout complete. Updated ${updatedCount} record(s).`);
     }
-    
-    console.log(`🔔 Found ${unclosedRecords.length} employee(s) who forgot to check out`);
-    
-    // Update each record
-    for (const record of unclosedRecords) {
-      record.checkOut = now;
-      const diff = differenceInMinutes(now, record.checkIn);
-      record.workHours = Number((diff / 60).toFixed(2));
-      record.status = "Present"; // Keep as Present
-      await record.save();
-      console.log(`  ✓ Auto-checked out: ${record.userName} (${format(new Date(record.checkIn), "hh:mm a")} → ${format(now, "hh:mm a")})`);
-    }
-    
-    console.log(`✅ Auto-checkout complete. Updated ${unclosedRecords.length} record(s).`);
   } catch (err: any) {
     console.error("❌ Auto-checkout error:", err.message);
   }
