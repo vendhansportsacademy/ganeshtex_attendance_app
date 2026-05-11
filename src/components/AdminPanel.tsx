@@ -905,72 +905,93 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative"
+              className="bg-white rounded-[2rem] shadow-2xl w-full max-w-3xl p-4 sm:p-8 relative"
               onClick={e => e.stopPropagation()}
             >
-              <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-lg">
+              <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-xl">
                 <X size={20} className="text-slate-400" />
               </button>
-              <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <UserPlus size={24} className="text-brand" />
-                {editingEmployee ? "Edit Employee" : "Add New Employee"}
-              </h3>
-              <form onSubmit={handleSaveEmployee} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    placeholder="e.g. John Doe"
-                  />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-brand/10 p-3 text-brand">
+                    <UserPlus size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-800">{editingEmployee ? "Edit Employee" : "Add New Employee"}</h3>
+                    <p className="text-sm text-slate-500">Create or update employee details with a responsive shift schedule.</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.department}
-                    onChange={e => setFormData({...formData, department: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    placeholder="e.g. Engineering"
-                  />
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Mobile friendly</span>
+              </div>
+              <form onSubmit={handleSaveEmployee} className="space-y-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                      placeholder="e.g. John Doe"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.department}
+                      onChange={e => setFormData({...formData, department: e.target.value})}
+                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                      placeholder="e.g. Engineering"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Employee ID</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.empId}
+                      onChange={e => setFormData({...formData, empId: e.target.value})}
+                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                      placeholder="EMP-001"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Employee ID</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.empId}
-                    onChange={e => setFormData({...formData, empId: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    placeholder="EMP-001"
-                  />
+                <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4 sm:p-5 space-y-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Shift Schedule</p>
+                      <p className="text-xs text-slate-500 mt-1">Set the start and end times for this employee.</p>
+                    </div>
+                    <span className="text-xs text-slate-400">Looks great on all screens</span>
+                  </div>
+                  <div className="grid gap-4">
+                    <ClockField
+                      label="Shift Start"
+                      hour={formData.shiftStartHour || "9"}
+                      min={formData.shiftStartMin || "00"}
+                      period={formData.shiftStartPeriod || "AM"}
+                      onHourChange={value => setFormData({ ...formData, shiftStartHour: value })}
+                      onMinChange={value => setFormData({ ...formData, shiftStartMin: value })}
+                      onPeriodChange={value => setFormData({ ...formData, shiftStartPeriod: value })}
+                    />
+                    <ClockField
+                      label="Shift End"
+                      hour={formData.shiftEndHour || "5"}
+                      min={formData.shiftEndMin || "00"}
+                      period={formData.shiftEndPeriod || "PM"}
+                      onHourChange={value => setFormData({ ...formData, shiftEndHour: value })}
+                      onMinChange={value => setFormData({ ...formData, shiftEndMin: value })}
+                      onPeriodChange={value => setFormData({ ...formData, shiftEndPeriod: value })}
+                    />
+                  </div>
                 </div>
-                <ClockField
-                  label="Shift Start"
-                  hour={formData.shiftStartHour || "9"}
-                  min={formData.shiftStartMin || "00"}
-                  period={formData.shiftStartPeriod || "AM"}
-                  onHourChange={value => setFormData({ ...formData, shiftStartHour: value })}
-                  onMinChange={value => setFormData({ ...formData, shiftStartMin: value })}
-                  onPeriodChange={value => setFormData({ ...formData, shiftStartPeriod: value })}
-                />
-                <ClockField
-                  label="Shift End"
-                  hour={formData.shiftEndHour || "5"}
-                  min={formData.shiftEndMin || "00"}
-                  period={formData.shiftEndPeriod || "PM"}
-                  onHourChange={value => setFormData({ ...formData, shiftEndHour: value })}
-                  onMinChange={value => setFormData({ ...formData, shiftEndMin: value })}
-                  onPeriodChange={value => setFormData({ ...formData, shiftEndPeriod: value })}
-                />
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-brand py-3 rounded-xl font-bold text-white shadow-lg shadow-brand/20 hover:bg-brand/90 transition-all disabled:opacity-50"
+                  className="w-full bg-brand py-3 rounded-2xl font-bold text-white shadow-lg shadow-brand/20 hover:bg-brand/90 transition-all disabled:opacity-50"
                 >
                   {submitting ? "Processing..." : editingEmployee ? "Update Employee" : "Add Employee"}
                 </button>
