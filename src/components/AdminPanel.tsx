@@ -91,23 +91,36 @@ export default function AdminPanel() {
     value: string;
     placeholder: string;
     onChange: (value: string) => void;
-  }) => (
-    <div>
-      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
-          {icon}
+  }) => {
+    const [localValue, setLocalValue] = useState(value);
+
+    useEffect(() => {
+      setLocalValue(value);
+    }, [value]);
+
+    const handleBlur = () => {
+      onChange(localValue);
+    };
+
+    return (
+      <div>
+        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+            {icon}
+          </div>
+          <input
+            type="text"
+            value={localValue}
+            placeholder={placeholder}
+            onChange={e => setLocalValue(e.target.value)}
+            onBlur={handleBlur}
+            className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
+          />
         </div>
-        <input
-          type="text"
-          value={value}
-          placeholder={placeholder}
-          onChange={e => onChange(e.target.value)}
-          className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
-        />
       </div>
-    </div>
-  );
+    );
+  };
 
   const TimeCard = ({
     label,
