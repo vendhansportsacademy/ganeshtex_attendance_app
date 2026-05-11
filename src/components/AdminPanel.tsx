@@ -157,7 +157,7 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
             onChange={e => onMinChange(e.target.value)}
             className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
           >
-            {["00", "15", "30", "45"].map((m) => (
+            {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
