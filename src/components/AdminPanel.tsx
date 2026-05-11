@@ -114,23 +114,23 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
     <div>
       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
       <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <div className="min-w-[4.5rem] rounded-3xl bg-violet-500 text-white text-5xl font-black flex items-center justify-center py-4">
+        <div className="flex flex-col items-center justify-center gap-3 mb-3 sm:flex-row">
+          <div className="w-full max-w-[6rem] rounded-3xl bg-violet-500 text-white text-4xl sm:text-5xl font-black flex items-center justify-center py-4">
             {hour.padStart(2, "0")}
           </div>
           <span className="text-4xl font-black text-slate-700">:</span>
-          <div className="min-w-[4.5rem] rounded-3xl bg-white text-slate-900 text-5xl font-black flex items-center justify-center py-4 border border-slate-200">
+          <div className="w-full max-w-[6rem] rounded-3xl bg-white text-slate-900 text-4xl sm:text-5xl font-black flex items-center justify-center py-4 border border-slate-200">
             {min}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-1 gap-2 mb-3 sm:grid-cols-2">
           {(["AM", "PM"] as const).map((value) => (
             <button
               key={value}
               type="button"
               onClick={() => onPeriodChange(value)}
               className={cn(
-                "py-3 rounded-2xl text-sm font-bold transition",
+                "w-full py-3 rounded-2xl text-sm font-bold transition",
                 period === value
                   ? "bg-violet-500 text-white"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
@@ -140,7 +140,7 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <select
             aria-label={`${label} hour`}
             value={hour}
