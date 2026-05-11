@@ -117,28 +117,46 @@ export default function AdminPanel() {
     label: string;
     value: string;
     onChange: (value: string) => void;
-  }) => (
-    <div>
-      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
-      <div className="relative rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-slate-500">
-            <Clock size={18} />
-            <span className={cn("text-sm font-semibold", value ? "text-slate-900" : "text-slate-400")}>
-              {value || "--:--"}
-            </span>
+  }) => {
+    const parts = value.split(":") || ["00", "00"];
+    const hours = parts[0] || "00";
+    const minutes = parts[1] || "00";
+
+    return (
+      <div>
+        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
+        <div className="flex gap-3 items-center">
+          <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between">
+            <input
+              type="number"
+              min="0"
+              max="23"
+              value={hours}
+              onChange={e => {
+                const h = e.target.value.padStart(2, "0");
+                onChange(`${h}:${minutes}`);
+              }}
+              className="w-12 text-center text-lg font-bold bg-transparent text-slate-900 focus:outline-none"
+              placeholder="HH"
+            />
+            <span className="text-2xl font-bold text-slate-300">:</span>
+            <input
+              type="number"
+              min="0"
+              max="59"
+              value={minutes}
+              onChange={e => {
+                const m = e.target.value.padStart(2, "0");
+                onChange(`${hours}:${m}`);
+              }}
+              className="w-12 text-center text-lg font-bold bg-transparent text-slate-900 focus:outline-none"
+              placeholder="MM"
+            />
           </div>
-          <Clock size={18} className="text-slate-400" />
         </div>
-        <input
-          type="time"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
       </div>
-    </div>
-  );
+    );
+  };
 
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
