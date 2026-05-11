@@ -94,6 +94,78 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
     return { hour: h.toString(), min, period };
   };
 
+  const ClockField = ({
+    label,
+    hour,
+    min,
+    period,
+    onHourChange,
+    onMinChange,
+    onPeriodChange,
+  }: {
+    label: string;
+    hour: string;
+    min: string;
+    period: string;
+    onHourChange: (value: string) => void;
+    onMinChange: (value: string) => void;
+    onPeriodChange: (value: string) => void;
+  }) => (
+    <div>
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
+      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <div className="min-w-[4.5rem] rounded-3xl bg-violet-500 text-white text-5xl font-black flex items-center justify-center py-4">
+            {hour.padStart(2, "0")}
+          </div>
+          <span className="text-4xl font-black text-slate-700">:</span>
+          <div className="min-w-[4.5rem] rounded-3xl bg-white text-slate-900 text-5xl font-black flex items-center justify-center py-4 border border-slate-200">
+            {min}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {(["AM", "PM"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onPeriodChange(value)}
+              className={cn(
+                "py-3 rounded-2xl text-sm font-bold transition",
+                period === value
+                  ? "bg-violet-500 text-white"
+                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+              )}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            aria-label={`${label} hour`}
+            value={hour}
+            onChange={e => onHourChange(e.target.value)}
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+          >
+            {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((h) => (
+              <option key={h} value={h}>{h.padStart(2, "0")}</option>
+            ))}
+          </select>
+          <select
+            aria-label={`${label} minute`}
+            value={min}
+            onChange={e => onMinChange(e.target.value)}
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+          >
+            {["00", "15", "30", "45"].map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+
   const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess(null);
@@ -877,68 +949,24 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                     placeholder="EMP-001"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift Start</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={formData.shiftStartHour || "9"}
-                      onChange={e => setFormData({...formData, shiftStartHour: e.target.value})}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    >
-                      {Array.from({length: 12}, (_, i) => i + 1).map(h => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={formData.shiftStartMin || "00"}
-                      onChange={e => setFormData({...formData, shiftStartMin: e.target.value})}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    >
-                      {["00", "15", "30", "45"].map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={formData.shiftStartPeriod || "AM"}
-                      onChange={e => setFormData({...formData, shiftStartPeriod: e.target.value})}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    >
-                      <option value="AM">AM</option>
-                      <option value="PM">PM</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Shift End</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={formData.shiftEndHour || "5"}
-                      onChange={e => setFormData({...formData, shiftEndHour: e.target.value})}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    >
-                      {Array.from({length: 12}, (_, i) => i + 1).map(h => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={formData.shiftEndMin || "00"}
-                      onChange={e => setFormData({...formData, shiftEndMin: e.target.value})}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    >
-                      {["00", "15", "30", "45"].map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={formData.shiftEndPeriod || "PM"}
-                      onChange={e => setFormData({...formData, shiftEndPeriod: e.target.value})}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                    >
-                      <option value="AM">AM</option>
-                      <option value="PM">PM</option>
-                    </select>
-                  </div>
-                </div>
+                <ClockField
+                  label="Shift Start"
+                  hour={formData.shiftStartHour || "9"}
+                  min={formData.shiftStartMin || "00"}
+                  period={formData.shiftStartPeriod || "AM"}
+                  onHourChange={value => setFormData({ ...formData, shiftStartHour: value })}
+                  onMinChange={value => setFormData({ ...formData, shiftStartMin: value })}
+                  onPeriodChange={value => setFormData({ ...formData, shiftStartPeriod: value })}
+                />
+                <ClockField
+                  label="Shift End"
+                  hour={formData.shiftEndHour || "5"}
+                  min={formData.shiftEndMin || "00"}
+                  period={formData.shiftEndPeriod || "PM"}
+                  onHourChange={value => setFormData({ ...formData, shiftEndHour: value })}
+                  onMinChange={value => setFormData({ ...formData, shiftEndMin: value })}
+                  onPeriodChange={value => setFormData({ ...formData, shiftEndPeriod: value })}
+                />
                 <button
                   type="submit"
                   disabled={submitting}
