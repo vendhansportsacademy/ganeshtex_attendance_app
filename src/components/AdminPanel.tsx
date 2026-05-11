@@ -137,54 +137,16 @@ export default function AdminPanel() {
       setLocalValue(value);
     }, [value]);
 
-    const parts = localValue.split(":") || ["00", "00"];
-    const hours = parts[0] || "00";
-    const minutes = parts[1] || "00";
-
-    const handleHourChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const h = e.target.value.slice(0, 2);
-      setLocalValue(`${h}:${minutes}`);
-    };
-
-    const handleMinuteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const m = e.target.value.slice(0, 2);
-      setLocalValue(`${hours}:${m}`);
-    };
-
-    const handleBlur = () => {
-      const h = Math.min(Math.max(parseInt(hours) || 0, 0), 23);
-      const m = Math.min(Math.max(parseInt(minutes) || 0, 0), 59);
-      const formatted = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      setLocalValue(formatted);
-      onChange(formatted);
-    };
-
     return (
       <div>
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
-        <div className="flex gap-2 items-center rounded-2xl border border-slate-200 bg-white p-3">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={hours}
-            onChange={handleHourChange}
-            onBlur={handleBlur}
-            maxLength={2}
-            className="w-14 text-center text-2xl font-bold text-slate-900 bg-transparent focus:outline-none"
-            placeholder="00"
-          />
-          <span className="text-2xl font-bold text-slate-300">:</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={minutes}
-            onChange={handleMinuteChange}
-            onBlur={handleBlur}
-            maxLength={2}
-            className="w-14 text-center text-2xl font-bold text-slate-900 bg-transparent focus:outline-none"
-            placeholder="00"
-          />
-        </div>
+        <input
+          type="time"
+          value={localValue}
+          onChange={e => setLocalValue(e.target.value)}
+          onBlur={() => onChange(localValue)}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition [color-scheme:light]"
+        />
       </div>
     );
   };
