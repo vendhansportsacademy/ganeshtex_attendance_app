@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Users, UserPlus, Search, Filter, CheckCircle2, Clock, AlertCircle,
   Trash2, Edit2, X, Calendar, Download, LayoutDashboard, FileText,
-  CheckSquare, Square, Activity, TrendingUp, Building2, UserCheck, BarChart4
+  CheckSquare, Square, Activity, TrendingUp, Building2, UserCheck, BarChart4,
+  User, Hash, Briefcase
 } from "lucide-react";
 import { api } from "../lib/api";
 import { format, parse } from "date-fns";
@@ -26,16 +27,12 @@ export default function AdminPanel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{id: string, name: string} | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<any>(null);
-  const [formData, setFormData] = useState({ 
-    name: "", 
-    department: "", 
-    empId: "", 
-    shiftStartHour: "9", 
-    shiftStartMin: "00", 
-    shiftStartPeriod: "AM",
-    shiftEndHour: "5", 
-    shiftEndMin: "00", 
-    shiftEndPeriod: "PM" 
+  const [formData, setFormData] = useState({
+    name: "",
+    department: "",
+    empId: "",
+    shiftStart: "",
+    shiftEnd: ""
   });
   const [submitting, setSubmitting] = useState(false);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
@@ -78,90 +75,67 @@ export default function AdminPanel() {
     }
   };
 
-const convertTo24Hour = (hour: string, min: string, period: string) => {
-    let h = parseInt(hour);
-    if (period === "PM" && h !== 12) h += 12;
-    if (period === "AM" && h === 12) h = 0;
-    return `${h.toString().padStart(2, "0")}:${min}`;
+  const resetForm = () => {
+    setFormData({ name: "", department: "", empId: "", shiftStart: "", shiftEnd: "" });
   };
 
-  const convertFrom24Hour = (time24: string) => {
-    const [hour, min] = time24.split(":");
-    let h = parseInt(hour);
-    const period = h >= 12 ? "PM" : "AM";
-    if (h > 12) h -= 12;
-    if (h === 0) h = 12;
-    return { hour: h.toString(), min, period };
-  };
-
-  const ClockField = ({
+  const InputField = ({
     label,
-    hour,
-    min,
-    period,
-    onHourChange,
-    onMinChange,
-    onPeriodChange,
+    icon,
+    value,
+    placeholder,
+    onChange,
   }: {
     label: string;
-    hour: string;
-    min: string;
-    period: string;
-    onHourChange: (value: string) => void;
-    onMinChange: (value: string) => void;
-    onPeriodChange: (value: string) => void;
+    icon: React.ReactNode;
+    value: string;
+    placeholder: string;
+    onChange: (value: string) => void;
   }) => (
     <div>
       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
-      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <div className="flex flex-col items-center justify-center gap-3 mb-3 sm:flex-row">
-          <div className="w-full max-w-[6rem] rounded-3xl bg-violet-500 text-white text-4xl sm:text-5xl font-black flex items-center justify-center py-4">
-            {hour.padStart(2, "0")}
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+          {icon}
+        </div>
+        <input
+          type="text"
+          value={value}
+          placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+          className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition"
+        />
+      </div>
+    </div>
+  );
+
+  const TimeCard = ({
+    label,
+    value,
+    onChange,
+  }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+  }) => (
+    <div>
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{label}</label>
+      <div className="relative rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-slate-500">
+            <Clock size={18} />
+            <span className={cn("text-sm font-semibold", value ? "text-slate-900" : "text-slate-400")}>
+              {value || "--:--"}
+            </span>
           </div>
-          <span className="text-4xl font-black text-slate-700">:</span>
-          <div className="w-full max-w-[6rem] rounded-3xl bg-white text-slate-900 text-4xl sm:text-5xl font-black flex items-center justify-center py-4 border border-slate-200">
-            {min}
-          </div>
+          <Clock size={18} className="text-slate-400" />
         </div>
-        <div className="grid grid-cols-1 gap-2 mb-3 sm:grid-cols-2">
-          {(["AM", "PM"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onPeriodChange(value)}
-              className={cn(
-                "w-full py-3 rounded-2xl text-sm font-bold transition",
-                period === value
-                  ? "bg-violet-500 text-white"
-                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-              )}
-            >
-              {value}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <select
-            aria-label={`${label} hour`}
-            value={hour}
-            onChange={e => onHourChange(e.target.value)}
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-          >
-            {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((h) => (
-              <option key={h} value={h}>{h.padStart(2, "0")}</option>
-            ))}
-          </select>
-          <select
-            aria-label={`${label} minute`}
-            value={min}
-            onChange={e => onMinChange(e.target.value)}
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-          >
-            {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        </div>
+        <input
+          type="time"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
       </div>
     </div>
   );
@@ -174,16 +148,7 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
     try {
       const dataToSave = {
         ...formData,
-        shiftStart: convertTo24Hour(formData.shiftStartHour, formData.shiftStartMin, formData.shiftStartPeriod),
-        shiftEnd: convertTo24Hour(formData.shiftEndHour, formData.shiftEndMin, formData.shiftEndPeriod)
       };
-      delete dataToSave.shiftStartHour;
-      delete dataToSave.shiftStartMin;
-      delete dataToSave.shiftStartPeriod;
-      delete dataToSave.shiftEndHour;
-      delete dataToSave.shiftEndMin;
-      delete dataToSave.shiftEndPeriod;
-      
       if (editingEmployee) {
         await api.put(`/employees/${editingEmployee._id}`, dataToSave);
         showToast("Employee updated successfully", "success");
@@ -193,7 +158,7 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
       }
       setIsModalOpen(false);
       setEditingEmployee(null);
-      setFormData({ name: "", department: "", empId: "", shiftStartHour: "9", shiftStartMin: "00", shiftStartPeriod: "AM", shiftEndHour: "5", shiftEndMin: "00", shiftEndPeriod: "PM" });
+      resetForm();
       await loadData();
     } catch (err: any) {
       setError(err.message || "Operation failed");
@@ -205,18 +170,12 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
 
   const openEditModal = (emp: any) => {
     setEditingEmployee(emp);
-    const startParts = convertFrom24Hour(emp.shiftStart || "09:00");
-    const endParts = convertFrom24Hour(emp.shiftEnd || "17:00");
-    setFormData({ 
-      name: emp.name, 
-      department: emp.department, 
-      empId: emp.empId, 
-      shiftStartHour: startParts.hour, 
-      shiftStartMin: startParts.min, 
-      shiftStartPeriod: startParts.period,
-      shiftEndHour: endParts.hour, 
-      shiftEndMin: endParts.min, 
-      shiftEndPeriod: endParts.period
+    setFormData({
+      name: emp.name,
+      department: emp.department,
+      empId: emp.empId,
+      shiftStart: emp.shiftStart || "",
+      shiftEnd: emp.shiftEnd || ""
     });
     setIsModalOpen(true);
   };
@@ -370,7 +329,7 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
               <button
                 onClick={() => {
                   setEditingEmployee(null);
-                  setFormData({ name: "", department: "", empId: "", shiftStartHour: "9", shiftStartMin: "00", shiftStartPeriod: "AM", shiftEndHour: "5", shiftEndMin: "00", shiftEndPeriod: "PM" });
+                  setFormData({ name: "", department: "", empId: "", shiftStart: "", shiftEnd: "" });
                   setIsModalOpen(true);
                 }}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl font-bold hover:bg-brand/90 transition-all shadow-lg shadow-brand/20"
@@ -917,84 +876,72 @@ const convertTo24Hour = (hour: string, min: string, period: string) => {
                     <UserPlus size={24} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">{editingEmployee ? "Edit Employee" : "Add New Employee"}</h3>
+                    <h3 className="text-2xl font-bold text-slate-800">{editingEmployee ? "Edit employee" : "Add employee"}</h3>
                     <p className="text-sm text-slate-500">Create or update employee details with a responsive shift schedule.</p>
                   </div>
                 </div>
                 <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Mobile friendly</span>
               </div>
               <form onSubmit={handleSaveEmployee} className="space-y-6">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
-                    <input
-                      type="text"
-                      required
+                    <InputField
+                      label="Full name"
+                      icon={<User size={18} />}
                       value={formData.name}
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                      placeholder="e.g. John Doe"
+                      placeholder="e.g. Priya Ramesh"
+                      onChange={value => setFormData({ ...formData, name: value })}
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.department}
-                      onChange={e => setFormData({...formData, department: e.target.value})}
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                      placeholder="e.g. Engineering"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Employee ID</label>
-                    <input
-                      type="text"
-                      required
+                  <div className="sm:col-span-2">
+                    <InputField
+                      label="Employee ID"
+                      icon={<Hash size={18} />}
                       value={formData.empId}
-                      onChange={e => setFormData({...formData, empId: e.target.value})}
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
-                      placeholder="EMP-001"
+                      placeholder="e.g. EMP-00142"
+                      onChange={value => setFormData({ ...formData, empId: value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <InputField
+                      label="Department"
+                      icon={<Briefcase size={18} />}
+                      value={formData.department}
+                      placeholder="e.g. Engineering"
+                      onChange={value => setFormData({ ...formData, department: value })}
                     />
                   </div>
                 </div>
-                <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4 sm:p-5 space-y-5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Shift Schedule</p>
-                      <p className="text-xs text-slate-500 mt-1">Set the start and end times for this employee.</p>
-                    </div>
-                    <span className="text-xs text-slate-400">Looks great on all screens</span>
-                  </div>
-                  <div className="grid gap-4">
-                    <ClockField
-                      label="Shift Start"
-                      hour={formData.shiftStartHour || "9"}
-                      min={formData.shiftStartMin || "00"}
-                      period={formData.shiftStartPeriod || "AM"}
-                      onHourChange={value => setFormData({ ...formData, shiftStartHour: value })}
-                      onMinChange={value => setFormData({ ...formData, shiftStartMin: value })}
-                      onPeriodChange={value => setFormData({ ...formData, shiftStartPeriod: value })}
-                    />
-                    <ClockField
-                      label="Shift End"
-                      hour={formData.shiftEndHour || "5"}
-                      min={formData.shiftEndMin || "00"}
-                      period={formData.shiftEndPeriod || "PM"}
-                      onHourChange={value => setFormData({ ...formData, shiftEndHour: value })}
-                      onMinChange={value => setFormData({ ...formData, shiftEndMin: value })}
-                      onPeriodChange={value => setFormData({ ...formData, shiftEndPeriod: value })}
-                    />
-                  </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TimeCard
+                    label="Shift start"
+                    value={formData.shiftStart}
+                    onChange={value => setFormData({ ...formData, shiftStart: value })}
+                  />
+                  <TimeCard
+                    label="Shift end"
+                    value={formData.shiftEnd}
+                    onChange={value => setFormData({ ...formData, shiftEnd: value })}
+                  />
                 </div>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full bg-brand py-3 rounded-2xl font-bold text-white shadow-lg shadow-brand/20 hover:bg-brand/90 transition-all disabled:opacity-50"
-                >
-                  {submitting ? "Processing..." : editingEmployee ? "Update Employee" : "Add Employee"}
-                </button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {submitting ? "Processing..." : editingEmployee ? "Update employee" : "Add employee"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Reset
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
